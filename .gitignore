@@ -1,0 +1,27 @@
+# Środowiska wirtualne (TEGO GIT MA NIE WIDZIEĆ!)
+.venv/
+venv/
+env/
+ENV/
+
+# Pliki tymczasowe Pythona
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Ustawienia edytorów (PyCharm, VS Code)
+.idea/
+.vscode/
+
+# Systemowe śmieci
+.DS_Store
+Thumbs.db
+
+# Ignorujemy modele (bo będą za duże na GitHuba)
+*.pt
+*.h5
+*.pkl
+
+# (Opcjonalnie) Ignorujemy plik z danymi, jeśli nie chcesz wysyłać swoich współrzędnych do sieci
+# Jeśli chcesz go wysłać prowadzącemu na GitHubie, usuń poniższą linijkę:
+# data/posture_data.csv

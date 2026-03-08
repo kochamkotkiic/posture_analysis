@@ -5,7 +5,8 @@ import os
 import time
 
 # ── konfiguracja ──────────────────────────────────────────────
-OUTPUT_PATH = "data/posture_data.csv"
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+OUTPUT_PATH = os.path.join(BASE_DIR, "data", "posture_data.csv")
 COLLECT_INTERVAL = 0.1   # co ile sekund zapisujemy próbkę (10 Hz)
 
 # Punkty których używamy (górna połowa ciała)
@@ -48,7 +49,7 @@ def draw_status(frame, label: str, count: int, mode: str):
 
 
 def main():
-    os.makedirs("data", exist_ok=True)
+    os.makedirs("../../data", exist_ok=True)
 
     # Wczytaj istniejące dane jeśli plik już istnieje
     if os.path.exists(OUTPUT_PATH):
