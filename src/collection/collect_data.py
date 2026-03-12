@@ -36,17 +36,21 @@ def extract_features(landmarks) -> dict:
     return features
 
 
-def draw_status(frame, label: str, count: int, mode: str):
-    """Rysuje HUD na podglądzie kamery."""
+def draw_status(frame, label: str, count: int, mode: str, visibility: float = 0.0):
     color = (0, 200, 0) if mode == "good" else (0, 0, 220) if mode == "bad" else (180, 180, 180)
     cv2.rectangle(frame, (0, 0), (640, 60), (30, 30, 30), -1)
     cv2.putText(frame, f"Tryb: {label}  |  Probki: {count}",
                 (15, 38), cv2.FONT_HERSHEY_SIMPLEX, 1.0, color, 2)
-    # instrukcja na dole
+
+    # ← NOWE: pasek widoczności barków
+    vis_color = (0, 220, 0) if visibility > 0.7 else (0, 165, 255) if visibility > 0.4 else (0, 0, 220)
+    cv2.putText(frame, f"Widocznosc barkow: {visibility:.2f}",
+                (15, frame.shape[0] - 60),
+                cv2.FONT_HERSHEY_SIMPLEX, 0.6, vis_color, 2)
+
     cv2.rectangle(frame, (0, frame.shape[0] - 50), (640, frame.shape[0]), (30, 30, 30), -1)
     cv2.putText(frame, "G = dobra postawa  |  B = zla postawa  |  Q = koniec",
                 (10, frame.shape[0] - 18), cv2.FONT_HERSHEY_SIMPLEX, 0.55, (200, 200, 200), 1)
-
 
 def main():
     os.makedirs("../../data", exist_ok=True)
@@ -106,8 +110,15 @@ def main():
                     last_saved = now
 
             # ── HUD ───────────────────────────────────────────
+            # pobierz widoczność barków
+            visibility = 0.0
+            if results.pose_landmarks:
+                left_vis = results.pose_landmarks.landmark[11].visibility
+                right_vis = results.pose_landmarks.landmark[12].visibility
+                visibility = (left_vis + right_vis) / 2.0
+
             label_text = "DOBRA (0)" if mode == "good" else "ZLA (1)" if mode == "bad" else "PAUZA"
-            draw_status(frame, label_text, len(records), mode)
+            draw_status(frame, label_text, len(records), mode, visibility)
 
             cv2.imshow("PostureGuard - Zbieranie danych", frame)
 
