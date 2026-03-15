@@ -11,6 +11,13 @@ MODEL_PATH  = os.path.join(BASE_DIR, "models", "posture_model.pkl")
 SCALER_PATH = os.path.join(BASE_DIR, "models", "scaler.pkl")
 CSV_PATH    = os.path.join(BASE_DIR, "data", "posture_data.csv")
 
+# dodaj ścieżkę do src żeby importy działały
+import sys
+sys.path.insert(0, BASE_DIR)
+
+from src.core.session_manager import select_or_create_profile, ensure_calibration
+from src.core.normalizer import normalize_features
+
 LANDMARKS_TO_USE = {
     "nose":           0,
     "left_eye":       2,
@@ -24,6 +31,8 @@ LANDMARKS_TO_USE = {
 mp_pose    = mp.solutions.pose
 mp_drawing = mp.solutions.drawing_utils
 
+BAD_POSTURE_ALERT_SECONDS = 3   # ile sekund złej postawy zanim alert
+
 
 def extract_features(landmarks) -> list:
     features = []
@@ -33,8 +42,10 @@ def extract_features(landmarks) -> list:
     return features
 
 
-def draw_ui(frame, label: int, confidence: float, corrections: int, flash: str = ""):
-    # główny status
+def draw_ui(frame, label: int, confidence: float,
+            bad_seconds: float, alert_threshold: float,
+            user_name: str, corrections: int, flash: str = ""):
+
     if label == 0:
         text, color, bg = "DOBRA POSTAWA", (0, 220, 0), (0, 60, 0)
     else:
@@ -43,33 +54,46 @@ def draw_ui(frame, label: int, confidence: float, corrections: int, flash: str =
     cv2.rectangle(frame, (0, 0), (640, 70), bg, -1)
     cv2.putText(frame, text, (15, 45),
                 cv2.FONT_HERSHEY_SIMPLEX, 1.3, color, 3)
-    cv2.putText(frame, f"Pewnosc: {confidence:.1%}",
-                (420, 45), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (200, 200, 200), 1)
+    cv2.putText(frame, f"{user_name}  |  {confidence:.1%}",
+                (380, 45), cv2.FONT_HERSHEY_SIMPLEX, 0.65, (200, 200, 200), 1)
 
-    # instrukcja klawiszy
-    cv2.rectangle(frame, (0, frame.shape[0] - 80), (640, frame.shape[0]), (30, 30, 30), -1)
-    cv2.putText(frame, "G = oznacz jako DOBRA  |  B = oznacz jako ZLA  |  Q = koniec",
-                (10, frame.shape[0] - 50), cv2.FONT_HERSHEY_SIMPLEX, 0.52, (200, 200, 200), 1)
-    cv2.putText(frame, f"Zapisanych korekt: {corrections}",
-                (10, frame.shape[0] - 15), cv2.FONT_HERSHEY_SIMPLEX, 0.55, (100, 220, 255), 1)
+    # pasek "złej postawy" — rośnie przez 3 sekundy
+    if label == 1 and bad_seconds > 0:
+        bar_w     = 640 - 30
+        progress  = min(bad_seconds / alert_threshold, 1.0)
+        filled    = int(bar_w * progress)
+        cv2.rectangle(frame, (15, 75), (15 + bar_w, 90), (60, 30, 30), -1)
+        bar_color = (0, 100, 255) if progress < 0.7 else (0, 0, 220)
+        cv2.rectangle(frame, (15, 75), (15 + filled, 90), bar_color, -1)
+        cv2.putText(frame, f"Alert za: {max(0, alert_threshold - bad_seconds):.1f}s",
+                    (15, 108), cv2.FONT_HERSHEY_SIMPLEX, 0.55, (180, 180, 180), 1)
 
-    # flash komunikat (np. "ZAPISANO DOBRA!")
+    # ALERT gdy przekroczony próg
+    if bad_seconds >= alert_threshold:
+        cv2.rectangle(frame, (100, 180), (540, 260), (0, 0, 180), -1)
+        cv2.rectangle(frame, (100, 180), (540, 260), (0, 0, 255), 3)
+        cv2.putText(frame, "POPRAW POSTAWE!", (120, 235),
+                    cv2.FONT_HERSHEY_SIMPLEX, 1.2, (255, 255, 255), 3)
+
+    # dolny pasek
+    cv2.rectangle(frame, (0, frame.shape[0] - 55), (640, frame.shape[0]), (30, 30, 30), -1)
+    cv2.putText(frame, "G = oznacz DOBRA  |  B = oznacz ZLA  |  Q = koniec",
+                (10, frame.shape[0] - 30), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (180, 180, 180), 1)
+    cv2.putText(frame, f"Korekt: {corrections}",
+                (10, frame.shape[0] - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.45, (100, 200, 255), 1)
+
     if flash:
-        cv2.putText(frame, flash, (150, frame.shape[0] - 100),
-                    cv2.FONT_HERSHEY_SIMPLEX, 1.0, (0, 255, 255), 3)
+        cv2.putText(frame, flash, (180, frame.shape[0] - 70),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.9, (0, 255, 255), 2)
 
 
-def save_correction(features: list, correct_label: int, csv_path: str):
-    """Dopisuje poprawioną próbkę do CSV."""
+def save_correction(features, correct_label, csv_path):
     columns = []
     for name in LANDMARKS_TO_USE.keys():
         columns += [f"{name}_x", f"{name}_y", f"{name}_z"]
-
-    row = dict(zip(columns, features))
-    row["label"] = correct_label
-
-    df_new = pd.DataFrame([row])
-
+    row           = dict(zip(columns, features))
+    row["label"]  = correct_label
+    df_new        = pd.DataFrame([row])
     if os.path.exists(csv_path):
         df_new.to_csv(csv_path, mode="a", header=False, index=False)
     else:
@@ -77,23 +101,43 @@ def save_correction(features: list, correct_label: int, csv_path: str):
 
 
 def main():
-    print("Wczytuję model...")
+    # ── wybór profilu ─────────────────────────────────────────
+    profile = select_or_create_profile()
+    if profile is None:
+        print("Do widzenia!")
+        return
+
+    # ── kalibracja (obowiązkowa) ──────────────────────────────
+    profile = ensure_calibration(profile)
+    if profile is None:
+        print("Nie można uruchomić bez kalibracji.")
+        return
+
+    calibration = profile["calibration"]
+    user_name   = profile["name"]
+
+    # ── model ─────────────────────────────────────────────────
+    print("\nWczytuję model...")
     model  = joblib.load(MODEL_PATH)
     scaler = joblib.load(SCALER_PATH) if os.path.exists(SCALER_PATH) else None
-    print("✅ Model wczytany!\n")
+    print("✅ Gotowe!\n")
 
     cap = cv2.VideoCapture(0)
     cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
     cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
 
-    predictions  = []
-    SMOOTH_N     = 10
-    label        = 0
-    confidence   = 1.0
-    corrections  = 0
-    flash_msg    = ""
-    flash_until  = 0.0
-    last_features = None   # ← zapamiętujemy ostatnie cechy
+    predictions    = []
+    SMOOTH_N       = 10
+    label          = 0
+    confidence     = 1.0
+    corrections    = 0
+    flash_msg      = ""
+    flash_until    = 0.0
+    last_features  = None
+
+    # timer złej postawy
+    bad_since      = None
+    bad_seconds    = 0.0
 
     with mp_pose.Pose(
         min_detection_confidence=0.6,
@@ -101,8 +145,7 @@ def main():
         model_complexity=1
     ) as pose:
 
-        print("📷 Uruchomiono!")
-        print("Gdy model się myli — naciśnij G lub B aby zapisać poprawkę.\n")
+        print(f"📷 Uruchomiono dla: {user_name} | Q = wyjście\n")
 
         while True:
             ret, frame = cap.read()
@@ -121,10 +164,13 @@ def main():
                     mp_drawing.DrawingSpec(color=(255, 255, 0), thickness=2)
                 )
 
-                features      = extract_features(results.pose_landmarks.landmark)
-                last_features = features   # ← zapisz do późniejszego użycia
+                raw_features  = extract_features(results.pose_landmarks.landmark)
+                last_features = raw_features
 
-                X = np.array(features).reshape(1, -1)
+                # normalizacja względem kalibracji
+                norm_features = normalize_features(raw_features, calibration)
+
+                X = np.array(norm_features).reshape(1, -1)
                 if scaler:
                     X = scaler.transform(X)
 
@@ -137,40 +183,47 @@ def main():
                     predictions.pop(0)
                 label = 1 if predictions.count(1) > SMOOTH_N // 2 else 0
 
-            # flash wygasa po czasie
-            flash_msg = flash_msg if time.time() < flash_until else ""
+            # ── timer złej postawy ────────────────────────────
+            now = time.time()
+            if label == 1:
+                if bad_since is None:
+                    bad_since = now
+                bad_seconds = now - bad_since
+            else:
+                bad_since   = None
+                bad_seconds = 0.0
 
-            draw_ui(frame, label, confidence, corrections, flash_msg)
-            cv2.imshow("PostureGuard - Test + Korekcja", frame)
+            # flash wygasa
+            flash_msg = flash_msg if now < flash_until else ""
+
+            draw_ui(frame, label, confidence,
+                    bad_seconds, BAD_POSTURE_ALERT_SECONDS,
+                    user_name, corrections, flash_msg)
+
+            cv2.imshow("PostureGuard", frame)
 
             key = cv2.waitKey(1) & 0xFF
 
-            # ── ręczne oznaczanie ─────────────────────────────
             if key in (ord("g"), ord("G")) and last_features:
-                save_correction(last_features, correct_label=0, csv_path=CSV_PATH)
+                save_correction(last_features, 0, CSV_PATH)
                 corrections += 1
                 flash_msg    = "ZAPISANO: DOBRA!"
-                flash_until  = time.time() + 1.5
-                print(f"✅ Zapisano jako DOBRA  (łącznie korekt: {corrections})")
+                flash_until  = now + 1.5
 
             elif key in (ord("b"), ord("B")) and last_features:
-                save_correction(last_features, correct_label=1, csv_path=CSV_PATH)
+                save_correction(last_features, 1, CSV_PATH)
                 corrections += 1
                 flash_msg    = "ZAPISANO: ZLA!"
-                flash_until  = time.time() + 1.5
-                print(f"✅ Zapisano jako ZLA  (łącznie korekt: {corrections})")
+                flash_until  = now + 1.5
 
             elif key == ord("q"):
                 break
 
     cap.release()
     cv2.destroyAllWindows()
-
+    print(f"\nZamknięto. Korekt zapisanych: {corrections}")
     if corrections > 0:
-        print(f"\n✅ Zapisano {corrections} korekt do {CSV_PATH}")
         print("Pamiętaj żeby wytrenować model jeszcze raz w Jupyter!")
-    else:
-        print("\nBrak korekt.")
 
 
 if __name__ == "__main__":
