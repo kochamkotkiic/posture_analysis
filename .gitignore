@@ -25,3 +25,8 @@ Thumbs.db
 # (Opcjonalnie) Ignorujemy plik z danymi, jeśli nie chcesz wysyłać swoich współrzędnych do sieci
 # Jeśli chcesz go wysłać prowadzącemu na GitHubie, usuń poniższą linijkę:
 # data/posture_data.csv
+# Node.js i Electron
+node_modules/
+
+# Opcjonalnie ignorujemy logi z błędami npm (jeśli by się pojawiły)
+npm-debug.log

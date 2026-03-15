@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Koci Strażnik Postawy</title>
+    <link rel="stylesheet" href="style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;800&display=swap" rel="stylesheet">
+</head>
+<body id="app-body">
+    <div class="drag-bar" id="drag-bar">
+        <span>Koci Strażnik Postawy - AI Edition</span>
+        <div style="-webkit-app-region: no-drag; margin-left: auto; display: flex; gap: 8px; padding-right: 15px;">
+            <button id="sys-min" style="background: rgba(255,255,255,0.1); padding: 0px 10px; border-radius: 5px; min-width: 35px; color: white;">_</button>
+            <button id="sys-max" style="background: rgba(255,255,255,0.1); padding: 0px 10px; border-radius: 5px; min-width: 35px; color: white;">🗖</button>
+            <button id="sys-close" style="background: rgba(255,51,102,0.8); padding: 0px 10px; border-radius: 5px; min-width: 35px; color: white;">X</button>
+        </div>
+    </div>
+
+    <div class="container" id="profile-screen">
+        <div class="status-panel" style="max-width: 600px;">
+            <h1 style="color: #fff; text-shadow: none; font-size: 28px;">Wybierz swój profil</h1>
+            <p style="margin-bottom: 25px; font-size: 16px;">Kliknij w profil, aby załadować kalibrację.</p>
+            <div id="profiles-list" style="display: flex; flex-direction: column; gap: 15px; width: 100%;">
+                <p>Ładowanie profili z Pythona...</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="container" id="main-screen" style="display: none;">
+
+        <div id="main-ui" class="status-panel" style="width: 100%; max-width: 1000px; display: flex; flex-direction: column; align-items: center;">
+            <img id="camera-feed" style="width: 100%; max-height: 60vh; object-fit: contain; background: #000; border-radius: 15px; margin-bottom: 20px; box-shadow: 0px 5px 15px rgba(0,0,0,0.5);" src="" alt="Trwa uruchamianie kamery..." />
+
+            <h1 id="posture-status" style="font-size: 32px;">Łączenie z kamerą...</h1>
+            <p id="confidence-text" style="font-size: 16px;">Pewność sztucznej inteligencji: --</p>
+
+            <div class="progress-bar-bg" style="height: 15px;">
+                <div class="progress-bar-fill" id="bad-time-bar" style="width: 0%;"></div>
+            </div>
+            <p class="alert-text" id="alert-text" style="font-size: 18px;">Ocena postawy...</p>
+        </div>
+
+        <div id="mini-ui" style="display: none; width: auto; height: auto; align-items: flex-start; justify-content: flex-start; padding: 8px;">
+            <div class="cat-avatar" id="cat-avatar"
+                style="font-size: 36px; width: 56px; height: 56px; display: flex; align-items: center; justify-content: center; border-radius: 50%; cursor: pointer; -webkit-app-region: no-drag; background: rgba(0,0,0,0.25); box-shadow: 0 6px 14px rgba(0,0,0,0.5);">
+                😸
+            </div>
+       </div>
+
+        <div class="controls" id="controls" style="max-width: 600px; margin-top: 15px; display: flex; gap: 15px; width: 100%;">
+            <button id="btn-overlay" style="padding: 15px; font-size: 16px; flex: 1;">Pływający Kotek</button>
+            <button id="btn-close-main" style="padding: 15px; font-size: 16px; flex: 1; background: rgba(255,51,102,0.8);">Zamknij Program</button>
+        </div>
+    </div>
+
+    <script>
+        const { ipcRenderer } = require('electron');
+
+        // Funkcje systemowe
+        document.getElementById('sys-min').addEventListener('click', () => ipcRenderer.send('window-controls', 'minimize'));
+        document.getElementById('sys-max').addEventListener('click', () => ipcRenderer.send('window-controls', 'maximize'));
+        document.getElementById('sys-close').addEventListener('click', () => ipcRenderer.send('window-controls', 'close'));
+
+        // Dodany z powrotem duży przycisk zamykania
+        document.getElementById('btn-close-main').addEventListener('click', () => ipcRenderer.send('window-controls', 'close'));
+
+        const btnOverlay = document.getElementById('btn-overlay');
+        const mainUi = document.getElementById('main-ui');
+        const miniUi = document.getElementById('mini-ui');
+        const controls = document.getElementById('controls');
+        const dragBar = document.getElementById('drag-bar');
+        const appBody = document.getElementById('app-body');
+        const catAvatar = document.getElementById('cat-avatar');
+
+        let currentMode = 'main';
+
+        function setMode(mode) {
+            currentMode = mode;
+            if (mode === 'main') {
+                // Powrót do pełnego ekranu (obsługiwane w main.js)
+                ipcRenderer.send('resize-window', 1000, 700, false);
+                dragBar.style.display = 'flex';
+                mainUi.style.display = 'flex';
+                miniUi.style.display = 'none';
+                controls.style.display = 'flex';
+
+                appBody.style.backgroundColor = 'rgba(20, 20, 25, 0.95)';
+                appBody.style.border = '1px solid #333';
+                appBody.classList.remove('draggable-body');
+            }
+            else if (mode === 'mini') {
+                // Okno 85x85 - idealne pod samego kota, bez zbędnych, blokujących marginesów
+                ipcRenderer.send('resize-window', 85, 85, true);
+                dragBar.style.display = 'none';
+                mainUi.style.display = 'none';
+                controls.style.display = 'none';
+
+                miniUi.style.display = 'flex';
+
+                appBody.style.backgroundColor = 'transparent';
+                appBody.style.border = 'none';
+                appBody.classList.add('draggable-body');
+            }
+        }
+
+        // Wejście w tryb Mini
+        btnOverlay.addEventListener('click', () => {
+            setMode('mini');
+        });
+
+        // Powrót z trybu Mini - teraz prosto do pełnego ekranu!
+        catAvatar.addEventListener('click', () => {
+            setMode('main');
+        });
+
+        // --- POŁĄCZENIE Z PYTHONEM ---
+        const ws = new WebSocket('ws://localhost:8765');
+        ws.onmessage = (event) => {
+            const data = JSON.parse(event.data);
+
+            if (data.type === "profiles_list") {
+                const listDiv = document.getElementById('profiles-list');
+                listDiv.innerHTML = '';
+                data.data.forEach(profileName => {
+                    const btn = document.createElement('button');
+                    btn.innerText = profileName;
+                    btn.style.padding = "15px";
+                    btn.style.fontSize = "16px";
+                    btn.onclick = () => {
+                        ws.send(JSON.stringify({ type: "select_profile", name: profileName }));
+                        document.getElementById('profile-screen').style.display = 'none';
+                        document.getElementById('main-screen').style.display = 'flex';
+                    };
+                    listDiv.appendChild(btn);
+                });
+            }
+
+            if (data.type === "video_frame") {
+                document.getElementById('camera-feed').src = 'data:image/jpeg;base64,' + data.image;
+                const statusText = document.getElementById('posture-status');
+                const confText = document.getElementById('confidence-text');
+                const alertText = document.getElementById('alert-text');
+                const badTimeBar = document.getElementById('bad-time-bar');
+
+                if (data.label === 0) {
+                    statusText.innerText = 'Postawa: Dobra!';
+                    statusText.style.color = '#00ff78';
+                    statusText.style.textShadow = '0px 0px 10px rgba(0, 255, 120, 0.4)';
+                    catAvatar.innerText = '😸';
+                    catAvatar.style.filter = 'drop-shadow(0px 0px 15px rgba(0, 255, 120, 0.5))';
+                } else {
+                    statusText.innerText = 'Postawa: Zła!';
+                    statusText.style.color = '#ff3366';
+                    statusText.style.textShadow = '0px 0px 10px rgba(255, 51, 102, 0.4)';
+                    catAvatar.innerText = '😾';
+                    catAvatar.style.filter = 'drop-shadow(0px 0px 15px rgba(255, 51, 102, 0.5))';
+                }
+
+                confText.innerText = `Pewność modelu: ${(data.confidence * 100).toFixed(0)}%`;
+                alertText.innerText = `Czas złej postawy: ${data.bad_seconds.toFixed(1)}s`;
+
+                const progress = Math.min(data.bad_seconds / 3.0, 1.0);
+                badTimeBar.style.width = (progress * 100) + '%';
+
+                if (progress >= 1.0) {
+                    alertText.innerText = "🚨 ALERT: WYPROSTUJ SIĘ!";
+                }
+            }
+        };
+    </script>
+</body>
+</html>

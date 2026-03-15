@@ -1,0 +1,152 @@
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+    font-family: 'Poppins', sans-serif;
+}
+
+body {
+    background-color: rgba(20, 20, 25, 0.90); /* Piękna, delikatna przezroczystość */
+    color: #ffffff;
+    overflow: hidden;
+    border-radius: 15px; /* Okno będzie miało zaokrąglone rogi! */
+    border: 1px solid #333;
+}
+
+/* Pasek do przeciągania okna */
+.drag-bar {
+    -webkit-app-region: drag; /* Magiczna komenda: pozwala przeciągać okno myszką! */
+    height: 35px;
+    background: linear-gradient(90deg, #6a11cb 0%, #2575fc 100%);
+    display: flex;
+    align-items: center;
+    padding-left: 15px;
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 1px;
+    border-top-left-radius: 14px;
+    border-top-right-radius: 14px;
+}
+
+.container {
+    padding: 25px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: calc(100vh - 35px); /* Interfejs rośnie i maleje razem z oknem! */
+    overflow-y: auto; /* W razie potrzeby doda ładny pasek przewijania */
+}
+.status-panel {
+    text-align: center;
+    background: rgba(255, 255, 255, 0.05);
+    padding: 25px;
+    border-radius: 20px;
+    box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+    width: 100%;
+    margin-bottom: 20px;
+}
+
+.cat-avatar {
+    font-size: 70px;
+    margin-bottom: 5px;
+    filter: drop-shadow(0px 0px 15px rgba(0, 255, 120, 0.5));
+}
+
+h1 {
+    font-size: 26px;
+    color: #00ff78; /* Świecący neonowy zielony */
+    margin-bottom: 5px;
+    text-shadow: 0px 0px 10px rgba(0, 255, 120, 0.4);
+}
+
+p {
+    color: #aaa;
+    font-size: 13px;
+    margin-bottom: 15px;
+}
+
+.progress-bar-bg {
+    width: 100%;
+    height: 10px;
+    background: #222;
+    border-radius: 10px;
+    overflow: hidden;
+    margin-bottom: 10px;
+}
+
+.progress-bar-fill {
+    width: 15%; /* Na start pokazujemy kawałek paska */
+    height: 100%;
+    background: #ff3366;
+    box-shadow: 0px 0px 10px #ff3366;
+    transition: width 0.3s;
+}
+
+.alert-text {
+    color: #ff3366;
+    font-weight: 600;
+    margin-bottom: 0;
+}
+
+.controls {
+    display: flex;
+    gap: 15px;
+    width: 100%;
+}
+
+button {
+    flex: 1;
+    padding: 12px 20px;
+    border: none;
+    border-radius: 10px;
+    background: #333;
+    color: white;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    -webkit-app-region: no-drag; /* Ważne, żeby przyciski dało się klikać */
+}
+
+button:hover {
+    background: #444;
+    transform: translateY(-2px);
+}
+
+#btn-overlay {
+    background: linear-gradient(90deg, #6a11cb 0%, #2575fc 100%);
+}
+
+#btn-overlay:hover {
+    box-shadow: 0px 0px 15px rgba(37, 117, 252, 0.5);
+}
+/* --- NOWE DODATKI NA SAM DÓŁ PLIKU --- */
+.draggable-body {
+    -webkit-app-region: drag; /* Pozwala łapać i przesuwać okno za tło */
+}
+
+#cat-avatar {
+    -webkit-app-region: no-drag; /* Bardzo ważne: bez tego nie dałoby się kliknąć w kota! */
+    cursor: pointer;
+    transition: transform 0.2s;
+    font-size: 80px;
+    margin-bottom: 15px;
+}
+
+#cat-avatar:hover {
+    transform: scale(1.1); /* Kotek lekko rośnie jak najedziesz myszką */
+}
+.draggable-body {
+    -webkit-app-region: drag;
+}
+.draggable-body .cat-avatar {
+    -webkit-app-region: no-drag; /* keeps the avatar clickable */
+}
+#mini-ui {
+    background: transparent;
+    margin: 6px; /* small margin so you can drag by edges */
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    pointer-events: auto;
+}
