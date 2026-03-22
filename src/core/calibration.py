@@ -131,35 +131,78 @@ def _draw_calibration_ui(frame, user_name: str, collecting: bool,
                           progress: float, visibility: float):
     h, w = frame.shape[:2]
 
-    # górny pasek
-    cv2.rectangle(frame, (0, 0), (w, 70), (30, 30, 30), -1)
-    cv2.putText(frame, f"Kalibracja: {user_name}",
-                (15, 45), cv2.FONT_HERSHEY_SIMPLEX, 1.1, (255, 255, 255), 2)
+    # Półprzezroczyste tło dla górnego paska (gradient effect)
+    overlay = frame.copy()
+    cv2.rectangle(overlay, (0, 0), (w, 90), (25, 20, 35), -1)
+    cv2.addWeighted(overlay, 0.85, frame, 0.15, 0, frame)
 
-    # widoczność barków
-    vis_color = (0, 220, 0) if visibility > 0.7 else (0, 165, 255) if visibility > 0.4 else (0, 0, 220)
-    vis_text  = "Widocznosc: OK ✓" if visibility > 0.7 else "Widocznosc: popraw pozycje!"
-    cv2.putText(frame, vis_text, (15, 100),
-                cv2.FONT_HERSHEY_SIMPLEX, 0.65, vis_color, 2)
+    # Neon border na górze
+    cv2.rectangle(frame, (0, 0), (w, 3), (120, 255, 0), -1)
+
+    # Tytuł z emoji i shadowem
+    title_text = f"🎯 Kalibracja Profilu: {user_name}"
+    cv2.putText(frame, title_text, (22, 52), cv2.FONT_HERSHEY_DUPLEX, 1.0, (0, 0, 0), 3)  # shadow
+    cv2.putText(frame, title_text, (20, 50), cv2.FONT_HERSHEY_DUPLEX, 1.0, (255, 255, 255), 2)  # text
+
+    # Widoczność barków z ikonką
+    vis_color = (0, 255, 120) if visibility > 0.7 else (0, 165, 255) if visibility > 0.4 else (0, 80, 220)
+    vis_icon = "✓" if visibility > 0.7 else "⚠"
+    vis_text = f"{vis_icon} Detekcja: {'Doskonała!' if visibility > 0.7 else 'Popraw pozycję'}"
+
+    # Tło dla statusu widoczności
+    status_bg = overlay.copy()
+    cv2.rectangle(status_bg, (10, 100), (w - 10, 135), (20, 20, 30), -1)
+    cv2.addWeighted(status_bg, 0.7, frame, 0.3, 0, frame)
+    cv2.rectangle(frame, (10, 100), (w - 10, 135), vis_color, 2, cv2.LINE_AA)
+
+    cv2.putText(frame, vis_text, (25, 125),
+                cv2.FONT_HERSHEY_SIMPLEX, 0.8, vis_color, 2, cv2.LINE_AA)
 
     if not collecting:
-        # instrukcja
-        cv2.putText(frame, "Usiądź PROSTO i patrz w kamerę",
-                    (15, 145), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (200, 200, 200), 1)
-        cv2.putText(frame, "Naciśnij SPACJĘ aby rozpocząć",
-                    (15, 175), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 220, 255), 2)
-    else:
-        # pasek postępu
-        bar_x, bar_y, bar_w, bar_h = 15, 140, w - 30, 30
-        cv2.rectangle(frame, (bar_x, bar_y), (bar_x + bar_w, bar_y + bar_h), (60, 60, 60), -1)
-        filled = int(bar_w * progress)
-        cv2.rectangle(frame, (bar_x, bar_y), (bar_x + filled, bar_y + bar_h), (0, 200, 0), -1)
-        secs_left = CALIBRATION_SECONDS - int(progress * CALIBRATION_SECONDS)
-        cv2.putText(frame, f"Nie ruszaj się... {secs_left}s",
-                    (bar_x, bar_y + bar_h + 30),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 220, 0), 2)
+        # Instrukcje z ładnym formatowaniem
+        instr_bg = overlay.copy()
+        cv2.rectangle(instr_bg, (10, 155), (w - 10, 230), (20, 20, 30), -1)
+        cv2.addWeighted(instr_bg, 0.7, frame, 0.3, 0, frame)
 
-    # dolna instrukcja
-    cv2.rectangle(frame, (0, h - 35), (w, h), (30, 30, 30), -1)
-    cv2.putText(frame, "Q = anuluj",
-                (15, h - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (150, 150, 150), 1)
+        cv2.putText(frame, "📸 Usiądź PROSTO i patrz w kamerę",
+                    (25, 185), cv2.FONT_HERSHEY_SIMPLEX, 0.75, (220, 220, 255), 2, cv2.LINE_AA)
+        cv2.putText(frame, "⌨  Naciśnij SPACJĘ aby rozpocząć",
+                    (25, 215), cv2.FONT_HERSHEY_SIMPLEX, 0.75, (0, 255, 200), 2, cv2.LINE_AA)
+    else:
+        # Pasek postępu z gradientem
+        bar_x, bar_y, bar_w, bar_h = 20, 160, w - 40, 40
+
+        # Tło paska
+        prog_bg = overlay.copy()
+        cv2.rectangle(prog_bg, (bar_x - 5, bar_y - 5), (bar_x + bar_w + 5, bar_y + bar_h + 5), (20, 20, 30), -1)
+        cv2.addWeighted(prog_bg, 0.8, frame, 0.2, 0, frame)
+
+        cv2.rectangle(frame, (bar_x, bar_y), (bar_x + bar_w, bar_y + bar_h), (60, 60, 80), -1)
+        cv2.rectangle(frame, (bar_x, bar_y), (bar_x + bar_w, bar_y + bar_h), (100, 100, 120), 2, cv2.LINE_AA)
+
+        # Wypełnienie paska z zielonym gradientem
+        filled = int(bar_w * progress)
+        if filled > 0:
+            # Gradient od żółto-zielonego do zielonego
+            color = (0, int(180 + 75 * progress), int(220 - 100 * progress))
+            cv2.rectangle(frame, (bar_x, bar_y), (bar_x + filled, bar_y + bar_h), color, -1)
+            cv2.rectangle(frame, (bar_x, bar_y), (bar_x + filled, bar_y + bar_h), (0, 255, 150), 2, cv2.LINE_AA)
+
+        # Tekst na pasku
+        secs_left = CALIBRATION_SECONDS - int(progress * CALIBRATION_SECONDS)
+        percent_text = f"{int(progress * 100)}%"
+        cv2.putText(frame, percent_text, (bar_x + bar_w // 2 - 30, bar_y + bar_h // 2 + 10),
+                    cv2.FONT_HERSHEY_DUPLEX, 0.9, (255, 255, 255), 2, cv2.LINE_AA)
+
+        cv2.putText(frame, f"⏱ Nie ruszaj się... {secs_left}s",
+                    (bar_x, bar_y + bar_h + 35),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 120), 2, cv2.LINE_AA)
+
+    # Dolny pasek z instrukcją
+    bottom_overlay = overlay.copy()
+    cv2.rectangle(bottom_overlay, (0, h - 45), (w, h), (25, 20, 35), -1)
+    cv2.addWeighted(bottom_overlay, 0.85, frame, 0.15, 0, frame)
+    cv2.rectangle(frame, (0, h - 45), (w, h - 42), (120, 255, 0), -1)
+
+    cv2.putText(frame, "❌ Naciśnij Q aby anulować",
+                (20, h - 15), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (180, 180, 200), 1, cv2.LINE_AA)

@@ -24,6 +24,51 @@
             <div id="profiles-list" style="display: flex; flex-direction: column; gap: 15px; width: 100%;">
                 <p>Ładowanie profili z Pythona...</p>
             </div>
+            <button id="btn-new-profile" style="margin-top: 20px; padding: 15px; font-size: 16px; background: rgba(0, 255, 120, 0.2); border: 2px solid #00ff78; width: 100%; cursor: pointer; border-radius: 8px; color: #fff;">
+                ➕ Stwórz nowy profil
+            </button>
+        </div>
+    </div>
+
+    <div id="create-profile-dialog" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 1000; align-items: center; justify-content: center;">
+        <div class="status-panel" style="max-width: 400px; padding: 30px;">
+            <h2 style="color: #fff; margin-bottom: 20px;">Nowy profil</h2>
+            <input type="text" id="profile-name-input" placeholder="Podaj nazwę profilu" style="width: 100%; padding: 12px; font-size: 16px; border-radius: 8px; border: 2px solid #00ff78; background: rgba(20,20,25,0.9); color: #fff; margin-bottom: 20px;">
+            <div style="display: flex; gap: 10px;">
+                <button id="btn-create-confirm" style="flex: 1; padding: 12px; font-size: 16px; background: rgba(0, 255, 120, 0.3); border: 2px solid #00ff78; border-radius: 8px; color: #fff; cursor: pointer;">Stwórz</button>
+                <button id="btn-create-cancel" style="flex: 1; padding: 12px; font-size: 16px; background: rgba(255, 51, 102, 0.3); border: 2px solid #ff3366; border-radius: 8px; color: #fff; cursor: pointer;">Anuluj</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="container" id="calibration-screen" style="display: none;">
+        <div id="calibration-ui" class="status-panel" style="width: 100%; max-width: 1000px; display: flex; flex-direction: column; align-items: center;">
+            <h1 style="font-size: 32px; margin-bottom: 10px;">🎯 Kalibracja Profilu</h1>
+            <p id="calibration-profile-name" style="font-size: 18px; margin-bottom: 20px; color: #00ff78;"></p>
+
+            <img id="calibration-feed" style="width: 100%; max-height: 60vh; object-fit: contain; background: #000; border-radius: 15px; margin-bottom: 20px; box-shadow: 0px 5px 15px rgba(0,0,0,0.5);" src="" alt="Kamera..." />
+
+            <div id="calibration-status" style="width: 100%; max-width: 600px;">
+                <div id="visibility-status" style="padding: 15px; border-radius: 10px; background: rgba(0,0,0,0.3); border: 2px solid #00ff78; margin-bottom: 20px; text-align: center;">
+                    <p id="visibility-text" style="font-size: 18px; margin: 0;">✓ Detekcja: Doskonała!</p>
+                </div>
+
+                <div id="calibration-instructions" style="padding: 20px; border-radius: 10px; background: rgba(0,0,0,0.3); border: 2px solid rgba(255,255,255,0.3); text-align: center;">
+                    <p style="font-size: 18px; margin-bottom: 10px;">📸 Usiądź PROSTO i patrz w kamerę</p>
+                    <p style="font-size: 18px; color: #00ff78;">⌨ Naciśnij SPACJĘ aby rozpocząć</p>
+                </div>
+
+                <div id="calibration-progress" style="display: none;">
+                    <div style="background: rgba(60,60,80,1); height: 40px; border-radius: 10px; overflow: hidden; position: relative; border: 2px solid rgba(100,100,120,1);">
+                        <div id="calibration-bar" style="width: 0%; height: 100%; background: linear-gradient(90deg, rgba(220,255,0,1) 0%, rgba(0,255,120,1) 100%); transition: width 0.3s; display: flex; align-items: center; justify-content: center;">
+                            <span id="calibration-percent" style="position: absolute; left: 50%; transform: translateX(-50%); font-size: 18px; font-weight: bold; color: #fff; text-shadow: 0px 0px 5px rgba(0,0,0,0.8);">0%</span>
+                        </div>
+                    </div>
+                    <p id="calibration-timer" style="font-size: 20px; margin-top: 15px; text-align: center; color: #00ff78;">⏱ Nie ruszaj się... 5s</p>
+                </div>
+            </div>
+
+            <button id="btn-calibration-cancel" style="margin-top: 20px; padding: 15px 30px; font-size: 16px; background: rgba(255, 51, 102, 0.3); border: 2px solid #ff3366; border-radius: 8px; color: #fff; cursor: pointer;">❌ Anuluj kalibrację</button>
         </div>
     </div>
 
@@ -41,9 +86,9 @@
             <p class="alert-text" id="alert-text" style="font-size: 18px;">Ocena postawy...</p>
         </div>
 
-        <div id="mini-ui" style="display: none; width: auto; height: auto; align-items: flex-start; justify-content: flex-start; padding: 8px;">
+        <div id="mini-ui" style="display: none; width: 100%; height: 100%; align-items: center; justify-content: center;">
             <div class="cat-avatar" id="cat-avatar"
-                style="font-size: 36px; width: 56px; height: 56px; display: flex; align-items: center; justify-content: center; border-radius: 50%; cursor: pointer; -webkit-app-region: no-drag; background: rgba(0,0,0,0.25); box-shadow: 0 6px 14px rgba(0,0,0,0.5);">
+                style="font-size: 36px; width: 56px; height: 56px; display: flex; align-items: center; justify-content: center; border-radius: 50%; cursor: grab; background: rgba(0,0,0,0.25); box-shadow: 0 6px 14px rgba(0,0,0,0.5);">
                 😸
             </div>
        </div>
@@ -61,8 +106,6 @@
         document.getElementById('sys-min').addEventListener('click', () => ipcRenderer.send('window-controls', 'minimize'));
         document.getElementById('sys-max').addEventListener('click', () => ipcRenderer.send('window-controls', 'maximize'));
         document.getElementById('sys-close').addEventListener('click', () => ipcRenderer.send('window-controls', 'close'));
-
-        // Dodany z powrotem duży przycisk zamykania
         document.getElementById('btn-close-main').addEventListener('click', () => ipcRenderer.send('window-controls', 'close'));
 
         const btnOverlay = document.getElementById('btn-overlay');
@@ -78,8 +121,9 @@
         function setMode(mode) {
             currentMode = mode;
             if (mode === 'main') {
-                // Powrót do pełnego ekranu (obsługiwane w main.js)
                 ipcRenderer.send('resize-window', 1000, 700, false);
+                ipcRenderer.send('set-ignore-mouse-events', false);
+
                 dragBar.style.display = 'flex';
                 mainUi.style.display = 'flex';
                 miniUi.style.display = 'none';
@@ -87,53 +131,169 @@
 
                 appBody.style.backgroundColor = 'rgba(20, 20, 25, 0.95)';
                 appBody.style.border = '1px solid #333';
+                appBody.style.overflow = 'auto';
                 appBody.classList.remove('draggable-body');
             }
             else if (mode === 'mini') {
-                // Okno 85x85 - idealne pod samego kota, bez zbędnych, blokujących marginesów
-                ipcRenderer.send('resize-window', 85, 85, true);
+                ipcRenderer.send('resize-window', 70, 70, true);
+                ipcRenderer.send('set-ignore-mouse-events', true, { forward: true });
+
                 dragBar.style.display = 'none';
                 mainUi.style.display = 'none';
                 controls.style.display = 'none';
-
                 miniUi.style.display = 'flex';
 
                 appBody.style.backgroundColor = 'transparent';
                 appBody.style.border = 'none';
-                appBody.classList.add('draggable-body');
+                appBody.style.padding = '0';
+                appBody.style.margin = '0';
+                appBody.style.overflow = 'hidden'; // Zapobiega ukrytym paskom przewijania
             }
         }
 
-        // Wejście w tryb Mini
-        btnOverlay.addEventListener('click', () => {
-            setMode('mini');
+        btnOverlay.addEventListener('click', () => setMode('mini'));
+        catAvatar.addEventListener('dblclick', () => { if (currentMode === 'mini') setMode('main'); });
+
+        // --- ZARZĄDZANIE KLIKNIĘCIAMI W TRYBIE MINI ---
+        let isHoveringCat = false;
+
+        catAvatar.addEventListener('mouseenter', () => {
+            isHoveringCat = true;
+            if (currentMode === 'mini') {
+                ipcRenderer.send('set-ignore-mouse-events', false);
+            }
         });
 
-        // Powrót z trybu Mini - teraz prosto do pełnego ekranu!
-        catAvatar.addEventListener('click', () => {
-            setMode('main');
+        catAvatar.addEventListener('mouseleave', () => {
+            isHoveringCat = false;
+            if (currentMode === 'mini' && !isDragging) {
+                ipcRenderer.send('set-ignore-mouse-events', true, { forward: true });
+            }
         });
 
         // --- POŁĄCZENIE Z PYTHONEM ---
         const ws = new WebSocket('ws://localhost:8765');
+        let wsReady = false;
+
+        ws.onopen = () => { wsReady = true; console.log('WS connected'); };
+        ws.onclose = () => { wsReady = false; console.log('Rozłączono z backendem'); };
+
+        const createDialog = document.getElementById('create-profile-dialog');
+        const profileInput = document.getElementById('profile-name-input');
+
+        document.getElementById('btn-new-profile').addEventListener('click', () => {
+            if (!wsReady) return alert('Backend (Python) jeszcze się nie załadował. Poczekaj chwilę!');
+            createDialog.style.display = 'flex';
+            profileInput.value = '';
+            profileInput.focus();
+        });
+
+        document.getElementById('btn-create-cancel').addEventListener('click', () => createDialog.style.display = 'none');
+
+        document.getElementById('btn-create-confirm').addEventListener('click', () => {
+            const profileName = profileInput.value.trim();
+            if (profileName !== '') {
+                ws.send(JSON.stringify({ type: "create_profile", name: profileName }));
+                createDialog.style.display = 'none';
+                document.getElementById('profile-screen').style.display = 'none';
+                document.getElementById('calibration-screen').style.display = 'flex';
+                document.getElementById('calibration-profile-name').innerText = `Profil: ${profileName}`;
+            }
+        });
+
+        profileInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') document.getElementById('btn-create-confirm').click();
+        });
+
+        document.addEventListener('keydown', (e) => {
+            const calibrationScreen = document.getElementById('calibration-screen');
+            if (calibrationScreen.style.display === 'flex' && e.code === 'Space') {
+                e.preventDefault();
+                ws.send(JSON.stringify({ type: "start_calibration" }));
+            }
+        });
+
+        document.getElementById('btn-calibration-cancel').addEventListener('click', () => {
+            ws.send(JSON.stringify({ type: "cancel_calibration" }));
+            document.getElementById('calibration-screen').style.display = 'none';
+            document.getElementById('profile-screen').style.display = 'flex';
+        });
+
         ws.onmessage = (event) => {
             const data = JSON.parse(event.data);
 
             if (data.type === "profiles_list") {
                 const listDiv = document.getElementById('profiles-list');
                 listDiv.innerHTML = '';
-                data.data.forEach(profileName => {
-                    const btn = document.createElement('button');
-                    btn.innerText = profileName;
-                    btn.style.padding = "15px";
-                    btn.style.fontSize = "16px";
-                    btn.onclick = () => {
-                        ws.send(JSON.stringify({ type: "select_profile", name: profileName }));
-                        document.getElementById('profile-screen').style.display = 'none';
-                        document.getElementById('main-screen').style.display = 'flex';
-                    };
-                    listDiv.appendChild(btn);
-                });
+                if (data.data.length === 0) {
+                    listDiv.innerHTML = '<p style="color: #aaa;">Brak profili. Stwórz nowy!</p>';
+                } else {
+                    data.data.forEach(profileName => {
+                        const btn = document.createElement('button');
+                        btn.innerText = profileName;
+                        btn.style.padding = "15px";
+                        btn.style.fontSize = "16px";
+                        btn.style.cursor = "pointer";
+                        btn.style.background = "rgba(255, 255, 255, 0.1)";
+                        btn.style.color = "white";
+                        btn.style.border = "1px solid #555";
+                        btn.style.borderRadius = "8px";
+                        btn.onmouseover = () => btn.style.background = "rgba(255, 255, 255, 0.2)";
+                        btn.onmouseout = () => btn.style.background = "rgba(255, 255, 255, 0.1)";
+
+                        btn.onclick = () => {
+                            ws.send(JSON.stringify({ type: "select_profile", name: profileName }));
+                            document.getElementById('profile-screen').style.display = 'none';
+                            document.getElementById('main-screen').style.display = 'flex';
+                        };
+                        listDiv.appendChild(btn);
+                    });
+                }
+            }
+
+            if (data.type === "profile_created") {
+                document.getElementById('calibration-screen').style.display = 'none';
+                document.getElementById('profile-screen').style.display = 'flex';
+                ws.send(JSON.stringify({ type: "get_profiles" }));
+            }
+
+            if (data.type === "calibration_frame") {
+                document.getElementById('calibration-feed').src = 'data:image/jpeg;base64,' + data.image;
+
+                const visibilityStatus = document.getElementById('visibility-status');
+                const visibilityText = document.getElementById('visibility-text');
+                const calibrationInstructions = document.getElementById('calibration-instructions');
+                const calibrationProgress = document.getElementById('calibration-progress');
+                const calibrationBar = document.getElementById('calibration-bar');
+                const calibrationPercent = document.getElementById('calibration-percent');
+                const calibrationTimer = document.getElementById('calibration-timer');
+
+                if (data.visibility > 0.7) {
+                    visibilityStatus.style.borderColor = '#00ff78';
+                    visibilityText.innerHTML = '✓ Detekcja: Doskonała!';
+                    visibilityText.style.color = '#00ff78';
+                } else if (data.visibility > 0.4) {
+                    visibilityStatus.style.borderColor = '#ffa500';
+                    visibilityText.innerHTML = '⚠ Detekcja: Popraw pozycję';
+                    visibilityText.style.color = '#ffa500';
+                } else {
+                    visibilityStatus.style.borderColor = '#ff3366';
+                    visibilityText.innerHTML = '❌ Detekcja: Słaba widoczność';
+                    visibilityText.style.color = '#ff3366';
+                }
+
+                if (data.collecting) {
+                    calibrationInstructions.style.display = 'none';
+                    calibrationProgress.style.display = 'block';
+                    const percent = Math.round(data.progress * 100);
+                    calibrationBar.style.width = percent + '%';
+                    calibrationPercent.innerText = percent + '%';
+                    const secsLeft = Math.max(0, 5 - Math.floor(data.progress * 5));
+                    calibrationTimer.innerText = `⏱ Nie ruszaj się... ${secsLeft}s`;
+                } else {
+                    calibrationInstructions.style.display = 'block';
+                    calibrationProgress.style.display = 'none';
+                }
             }
 
             if (data.type === "video_frame") {
@@ -163,11 +323,46 @@
                 const progress = Math.min(data.bad_seconds / 3.0, 1.0);
                 badTimeBar.style.width = (progress * 100) + '%';
 
-                if (progress >= 1.0) {
-                    alertText.innerText = "🚨 ALERT: WYPROSTUJ SIĘ!";
-                }
+                if (progress >= 1.0) alertText.innerText = "🚨 ALERT: WYPROSTUJ SIĘ!";
             }
         };
+
+        // --- DRAGGABLE MINI-WINDOW (NAPRAWIONE) ---
+        let isDragging = false;
+        let dragOffsetX = 0;
+        let dragOffsetY = 0;
+
+        catAvatar.addEventListener('mousedown', (e) => {
+            if (currentMode === 'mini') {
+                isDragging = true;
+                // Zapamiętujemy, w którym miejscu kota kliknęliśmy
+                dragOffsetX = e.clientX;
+                dragOffsetY = e.clientY;
+                catAvatar.style.cursor = 'grabbing';
+            }
+        });
+
+        document.addEventListener('mousemove', (e) => {
+            if (isDragging && currentMode === 'mini') {
+                // e.screenX i e.screenY to bezwzględna pozycja myszki na monitorze!
+                const targetX = e.screenX - dragOffsetX;
+                const targetY = e.screenY - dragOffsetY;
+
+                // Wysyłamy do Pythona/Electrona gotowe koordynaty, gdzie postawić okno
+                ipcRenderer.send('move-window-absolute', targetX, targetY);
+            }
+        });
+
+        document.addEventListener('mouseup', () => {
+            isDragging = false;
+            catAvatar.style.cursor = 'grab';
+
+            // Po puszczeniu myszki sprawdzamy, czy włączyć przezroczystość dla kliknięć
+            if (currentMode === 'mini' && !isHoveringCat) {
+                ipcRenderer.send('set-ignore-mouse-events', true, { forward: true });
+            }
+        });
+
     </script>
 </body>
 </html>
