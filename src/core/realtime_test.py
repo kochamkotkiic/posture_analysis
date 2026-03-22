@@ -127,7 +127,7 @@ def main():
     cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
 
     predictions    = []
-    SMOOTH_N       = 10
+    SMOOTH_N       = 20
     label          = 0
     confidence     = 1.0
     corrections    = 0
@@ -181,7 +181,7 @@ def main():
                 predictions.append(pred)
                 if len(predictions) > SMOOTH_N:
                     predictions.pop(0)
-                label = 1 if predictions.count(1) > SMOOTH_N // 2 else 0
+                label = 1 if predictions.count(1) >= int(SMOOTH_N * 0.7) else 0
 
             # ── timer złej postawy ────────────────────────────
             now = time.time()

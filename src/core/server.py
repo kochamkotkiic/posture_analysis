@@ -222,7 +222,7 @@ async def posture_server(websocket):
         mp_drawing = mp.solutions.drawing_utils
 
         predictions = []
-        SMOOTH_N = 10
+        SMOOTH_N = 20
         bad_since = None
         bad_seconds = 0.0
 
@@ -258,7 +258,7 @@ async def posture_server(websocket):
 
                     predictions.append(pred)
                     if len(predictions) > SMOOTH_N: predictions.pop(0)
-                    label = 1 if predictions.count(1) > SMOOTH_N // 2 else 0
+                    label = 1 if predictions.count(1) >= int(SMOOTH_N * 0.7) else 0
 
                 now = time.time()
                 if label == 1:
