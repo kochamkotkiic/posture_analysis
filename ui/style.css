@@ -34,8 +34,8 @@ body {
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    height: calc(100vh - 35px); /* Interfejs rośnie i maleje razem z oknem! */
-    overflow-y: auto; /* W razie potrzeby doda ładny pasek przewijania */
+    height: calc(100vh - 35px);
+    overflow: hidden;
 }
 .status-panel {
     text-align: center;
@@ -195,4 +195,29 @@ button:hover {
 #mini-ui ~ .container {
     padding: 0 !important;
     height: 100vh !important;
+}
+/* ===== LISTA PROFILI ===== */
+#profiles-list .profile-row {
+    display: grid;
+    grid-template-columns: 92% 1fr;
+    gap: 8px;
+    width: 100%;
+    align-items: center;
+}
+
+#profiles-list .profile-row button {
+    flex: unset !important;
+    width: 100% !important;
+    transform: none !important;
+    pointer-events: auto !important;
+    cursor: pointer !important;
+}
+
+#profiles-list .profile-row button:hover {
+    transform: none !important;
+}
+#stretch-popup:hover {
+    background: rgba(40,40,50,1) !important; /* Lekkie rozjaśnienie tła */
+    transform: translateY(-5px); /* Delikatne uniesienie */
+    border-color: #00ff78 !important; /* Zmiana koloru ramki na zielony */
 }

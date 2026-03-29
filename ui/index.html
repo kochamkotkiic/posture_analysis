@@ -21,8 +21,7 @@
         <div class="status-panel" style="max-width: 600px;">
             <h1 style="color: #fff; text-shadow: none; font-size: 28px;">Wybierz swój profil</h1>
             <p style="margin-bottom: 25px; font-size: 16px;">Kliknij w profil, aby załadować kalibrację.</p>
-            <div id="profiles-list" style="display: flex; flex-direction: column; gap: 15px; width: 100%;">
-                <p>Ładowanie profili z Pythona...</p>
+            <div id="profiles-list" style="display: flex; flex-direction: column; gap: 15px; width: 100%; max-height: 300px; overflow-y: auto; padding-right: 5px;">                <p>Ładowanie profili z Pythona...</p>
             </div>
             <button id="btn-new-profile" style="margin-top: 20px; padding: 15px; font-size: 16px; background: rgba(0, 255, 120, 0.2); border: 2px solid #00ff78; width: 100%; cursor: pointer; border-radius: 8px; color: #fff;">
                 ➕ Stwórz nowy profil
@@ -75,7 +74,7 @@
     <div class="container" id="main-screen" style="display: none;">
 
         <div id="main-ui" class="status-panel" style="width: 100%; max-width: 1000px; display: flex; flex-direction: column; align-items: center;">
-            <img id="camera-feed" style="width: 100%; max-height: 60vh; object-fit: contain; background: #000; border-radius: 15px; margin-bottom: 20px; box-shadow: 0px 5px 15px rgba(0,0,0,0.5);" src="" alt="Trwa uruchamianie kamery..." />
+            <img id="camera-feed" style="width: 100%; max-height: 45vh; object-fit: contain; background: #000; border-radius: 15px; margin-bottom: 20px; box-shadow: 0px 5px 15px rgba(0,0,0,0.5);" src="" alt="Trwa uruchamianie kamery..." />
 
             <h1 id="posture-status" style="font-size: 32px;">Łączenie z kamerą...</h1>
             <p id="confidence-text" style="font-size: 16px;">Pewność sztucznej inteligencji: --</p>
@@ -94,11 +93,19 @@
        </div>
 
         <div class="controls" id="controls" style="max-width: 600px; margin-top: 15px; display: flex; gap: 15px; width: 100%;">
-            <button id="btn-overlay" style="padding: 15px; font-size: 16px; flex: 1;">Pływający Kotek</button>
-            <button id="btn-close-main" style="padding: 15px; font-size: 16px; flex: 1; background: rgba(255,51,102,0.8);">Zamknij Program</button>
+            <button id="btn-overlay" style="padding: 15px; font-size: 16px; flex: 1; background: rgba(255,255,255,0.1); border: 2px solid #555; border-radius: 8px; color: white; cursor: pointer;">Pływający Kotek</button>
+            <button id="btn-change-profile" style="padding: 15px; font-size: 16px; flex: 1; background: rgba(255, 165, 0, 0.3); border: 2px solid #ffa500; border-radius: 8px; color: white; cursor: pointer;">Powrót do menu</button>
+            <button id="btn-close-main" style="padding: 15px; font-size: 16px; flex: 1; background: rgba(255,51,102,0.3); border: 2px solid #ff3366; border-radius: 8px; color: white; cursor: pointer;">Zamknij Program</button>
         </div>
     </div>
+    <div id="stretch-popup" style="display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 300px; background: rgba(30,30,40,0.95); border: 2px solid #ffa500; border-radius: 15px; box-shadow: 0 10px 25px rgba(0,0,0,0.6); z-index: 10000; padding: 20px; flex-direction: column; align-items: center; text-align: center; cursor: pointer; transition: opacity 0.3s ease-in-out;">
+        <img id="stretch-cat-gif" src="https://media.giphy.com/media/v1.Y2lkPWVjZjA1ZTQ3NHB0aHpkd3lzZXViNXNsMjJtMWVrYWM2YXRza2c5bDRoOTJ2ajFlbiZlcD12MV9naWZzX3NlYXJjaCZjdD1n/hO6IDDjWXOjoJ0ECPm/giphy.gif" alt="Rozciągający się kot" style="width: 100%; max-height: 150px; border-radius: 8px; margin-bottom: 15px; object-fit: cover;">
 
+        <h2 style="color: #ffa500; margin: 0 0 10px 0; font-size: 20px; text-shadow: 0 0 10px rgba(255,165,0,0.4);">🚨 Przerwa!</h2>
+        <p style="color: white; margin: 0 0 15px 0; font-size: 16px; line-height: 1.4;">Twoje plecy są zmęczone. <br>Poprzeciągaj się chwilę!</p>
+
+        <span style="color: #aaa; font-size: 12px; font-style: italic;">(Kliknij ten komunikat, gdy skończysz)</span>
+    </div>
     <script>
         const { ipcRenderer } = require('electron');
 
@@ -117,9 +124,12 @@
         const catAvatar = document.getElementById('cat-avatar');
 
         let currentMode = 'main';
+        let previousMode = 'main'; // Dodajemy pamięć, żeby wiedzieć gdzie wrócić!
 
         function setMode(mode) {
+            if (mode === 'popup') previousMode = currentMode;
             currentMode = mode;
+
             if (mode === 'main') {
                 ipcRenderer.send('resize-window', 1000, 700, false);
                 ipcRenderer.send('set-ignore-mouse-events', false);
@@ -147,7 +157,26 @@
                 appBody.style.border = 'none';
                 appBody.style.padding = '0';
                 appBody.style.margin = '0';
-                appBody.style.overflow = 'hidden'; // Zapobiega ukrytym paskom przewijania
+                appBody.style.overflow = 'hidden';
+            }
+            // NOWY TRYB: TYLKO POPUP
+            else if (mode === 'popup') {
+                // Rozmiar okna idealnie dopasowany do samego popupa!
+                ipcRenderer.send('resize-window', 360, 380, true);
+                ipcRenderer.send('set-ignore-mouse-events', false); // bo musimy w niego kliknąć
+
+                // Ukrywamy całą resztę aplikacji
+                dragBar.style.display = 'none';
+                mainUi.style.display = 'none';
+                controls.style.display = 'none';
+                miniUi.style.display = 'none';
+
+                // Tło przezroczyste, więc widać tylko popup
+                appBody.style.backgroundColor = 'transparent';
+                appBody.style.border = 'none';
+                appBody.style.padding = '0';
+                appBody.style.margin = '0';
+                appBody.style.overflow = 'hidden';
             }
         }
 
@@ -219,6 +248,18 @@
             document.getElementById('profile-screen').style.display = 'flex';
         });
 
+        // ZMIANA: Obsługa kliknięcia w "Zmień Profil"
+        document.getElementById('btn-change-profile').addEventListener('click', () => {
+            if (wsReady) {
+                // Wyślij sygnał do Pythona, żeby wyłączył kamerę
+                ws.send(JSON.stringify({ type: "stop_session" }));
+            }
+
+            // Ukryj kamerę, pokaż listę profili
+            document.getElementById('main-screen').style.display = 'none';
+            document.getElementById('profile-screen').style.display = 'flex';
+        });
+
         ws.onmessage = (event) => {
             const data = JSON.parse(event.data);
 
@@ -229,24 +270,72 @@
                     listDiv.innerHTML = '<p style="color: #aaa;">Brak profili. Stwórz nowy!</p>';
                 } else {
                     data.data.forEach(profileName => {
+                        // Tworzymy kontener, żeby nazwa profilu i kosz były w jednym wierszu
+                        const wrapper = document.createElement('div');
+                        wrapper.className = 'profile-row';  // ← dodaj klasę
+
+                        // Główny przycisk profilu
                         const btn = document.createElement('button');
                         btn.innerText = profileName;
-                        btn.style.padding = "15px";
-                        btn.style.fontSize = "16px";
-                        btn.style.cursor = "pointer";
-                        btn.style.background = "rgba(255, 255, 255, 0.1)";
-                        btn.style.color = "white";
-                        btn.style.border = "1px solid #555";
-                        btn.style.borderRadius = "8px";
+                        Object.assign(btn.style, {
+                            flex: "1",
+                            minWidth: "0",
+                            textAlign: "center",
+                            paddingLeft: "20px",
+                            paddingRight: "15px",
+                            paddingTop: "15px",
+                            paddingBottom: "15px",
+                            fontSize: "16px",
+                            cursor: "pointer",
+                            background: "rgba(255, 255, 255, 0.1)",
+                            color: "white",
+                            border: "1px solid #555",
+                            borderRadius: "8px",
+                            overflow: "hidden",
+                            textOverflow: "ellipsis",
+                            whiteSpace: "nowrap"
+                        });
                         btn.onmouseover = () => btn.style.background = "rgba(255, 255, 255, 0.2)";
-                        btn.onmouseout = () => btn.style.background = "rgba(255, 255, 255, 0.1)";
+                        btn.onmouseout  = () => btn.style.background = "rgba(255, 255, 255, 0.1)";
 
+                        const delBtn = document.createElement('button');
+                        delBtn.innerText = "🗑";
+                        delBtn.title = "Usuń profil";
+                        Object.assign(delBtn.style, {
+                            padding: "0",
+                            fontSize: "20px",
+                            cursor: "pointer",
+                            background: "transparent",
+                            color: "rgba(255, 51, 102, 0.6)",
+                            border: "none",
+                            borderRadius: "4px",
+                            width: "32px",
+                            minWidth: "32px",
+                            height: "100%",
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            flexShrink: "0",
+                            transition: "color 0.2s"
+                        });
+                        delBtn.onmouseover = () => delBtn.style.color = "rgba(255, 51, 102, 1)";
+                        delBtn.onmouseout  = () => delBtn.style.color = "rgba(255, 51, 102, 0.6)";
+
+                        delBtn.onclick = () => {
+                            // Okienko z potwierdzeniem
+                            if(confirm(`Czy na pewno chcesz bezpowrotnie usunąć profil '${profileName}'?`)) {
+                                ws.send(JSON.stringify({ type: "delete_profile", name: profileName }));
+                            }
+                        };
                         btn.onclick = () => {
                             ws.send(JSON.stringify({ type: "select_profile", name: profileName }));
                             document.getElementById('profile-screen').style.display = 'none';
                             document.getElementById('main-screen').style.display = 'flex';
                         };
-                        listDiv.appendChild(btn);
+                        // Wrzucamy przyciski do kontenera, a kontener na listę
+                        wrapper.appendChild(btn);
+                        wrapper.appendChild(delBtn);
+                        listDiv.appendChild(wrapper);
                     });
                 }
             }
@@ -325,6 +414,17 @@
 
                 if (progress >= 1.0) alertText.innerText = "🚨 ALERT: WYPROSTUJ SIĘ!";
             }
+
+            // --- ODBIÓR ALERTU O ROZCIĄGANIU ---
+            if (data.type === "stretch_alert") {
+                // Włączamy nasz nowy, dedykowany tryb!
+                setMode('popup');
+
+                const popup = document.getElementById('stretch-popup');
+                popup.style.display = 'flex';
+                popup.style.opacity = '0';
+                setTimeout(() => { popup.style.opacity = '1'; }, 10);
+            }
         };
 
         // --- DRAGGABLE MINI-WINDOW (NAPRAWIONE) ---
@@ -335,7 +435,6 @@
         catAvatar.addEventListener('mousedown', (e) => {
             if (currentMode === 'mini') {
                 isDragging = true;
-                // Zapamiętujemy, w którym miejscu kota kliknęliśmy
                 dragOffsetX = e.clientX;
                 dragOffsetY = e.clientY;
                 catAvatar.style.cursor = 'grabbing';
@@ -344,11 +443,8 @@
 
         document.addEventListener('mousemove', (e) => {
             if (isDragging && currentMode === 'mini') {
-                // e.screenX i e.screenY to bezwzględna pozycja myszki na monitorze!
                 const targetX = e.screenX - dragOffsetX;
                 const targetY = e.screenY - dragOffsetY;
-
-                // Wysyłamy do Pythona/Electrona gotowe koordynaty, gdzie postawić okno
                 ipcRenderer.send('move-window-absolute', targetX, targetY);
             }
         });
@@ -357,12 +453,28 @@
             isDragging = false;
             catAvatar.style.cursor = 'grab';
 
-            // Po puszczeniu myszki sprawdzamy, czy włączyć przezroczystość dla kliknięć
             if (currentMode === 'mini' && !isHoveringCat) {
                 ipcRenderer.send('set-ignore-mouse-events', true, { forward: true });
             }
         });
+        document.getElementById('stretch-popup').addEventListener('click', () => {
+            const popup = document.getElementById('stretch-popup');
+
+            popup.style.opacity = '0';
+            setTimeout(() => {
+                popup.style.display = 'none';
+
+                // MAGIA: Wracamy DOKŁADNIE do tego trybu, w którym byliśmy!
+                setMode(previousMode);
+
+                if (wsReady) {
+                    ws.send(JSON.stringify({ type: "stretch_done" }));
+                }
+            }, 300);
+        });
 
     </script>
+
+
 </body>
 </html>

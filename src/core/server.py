@@ -41,9 +41,9 @@ scaler = joblib.load(SCALER_PATH) if os.path.exists(SCALER_PATH) else None
 
 
 async def posture_server(websocket):
-    print("\n[SERWER] Interfejs połączony! Przesyłam listę profili...")
+    print("\n[SERWER] Interfejs połączony!")
 
-    # Funkcja pomocnicza do pobierania listy profili
+
     def get_profiles_list():
         profiles = []
         if os.path.exists(PROFILES_DIR):
@@ -51,172 +51,180 @@ async def posture_server(websocket):
                 profiles.append(os.path.basename(f).replace(".json", ""))
         return profiles
 
-    # 1. Wysyłamy początkową listę profili
-    await websocket.send(json.dumps({"type": "profiles_list", "data": get_profiles_list()}))
-
-    # 2. Czekamy na akcję użytkownika (wybór profilu lub stworzenie nowego)
+    # GŁÓWNA PĘTLA SESJI APLIKACJI
     while True:
-        msg = await websocket.recv()
-        client_data = json.loads(msg)
+        print("[SERWER] Przesyłam listę profili i czekam na wybór...")
+        try:
+            await websocket.send(json.dumps({"type": "profiles_list", "data": get_profiles_list()}))
+        except websockets.exceptions.ConnectionClosed:
+            return
 
-        # Obsługa tworzenia nowego profilu
-        if client_data.get("type") == "create_profile":
-            profile_name = client_data.get("name", "").strip()
-            if profile_name:
-                print(f"\n[SERWER] Rozpoczęcie kalibracji dla profilu: {profile_name}")
+        profile_name = None
 
-                # Rozpocznij kalibrację w Electronie
-                cap = cv2.VideoCapture(0)
-                mp_pose = mp.solutions.pose
-                mp_drawing = mp.solutions.drawing_utils
+        # Czekamy na akcję użytkownika (wybór profilu lub stworzenie nowego)
+        while True:
+            try:
+                msg = await websocket.recv()
+            except websockets.exceptions.ConnectionClosed:
+                print("\n[SERWER] Rozłączono interfejs użytkownika.")
+                return
 
-                samples = []
-                collecting = False
-                start_time = None
-                calibration_data = None
+            client_data = json.loads(msg)
+            # Obsługa USUWANIA profilu
+            if client_data.get("type") == "delete_profile":
+                del_name = client_data.get("name")
+                if del_name:
+                    del_path = os.path.join(PROFILES_DIR, f"{del_name}.json")
+                    if os.path.exists(del_path):
+                        os.remove(del_path)
+                        print(f"\n[SERWER] Usunięto profil z dysku: {del_name}")
 
-                with mp_pose.Pose(min_detection_confidence=0.7, min_tracking_confidence=0.7, model_complexity=1) as pose:
-                    while True:
-                        ret, frame = cap.read()
-                        if not ret:
-                            await asyncio.sleep(0.01)
-                            continue
+                # Po usunięciu odświeżamy listę w interfejsie
+                await websocket.send(json.dumps({"type": "profiles_list", "data": get_profiles_list()}))
+                continue
+            # Obsługa tworzenia nowego profilu
+            if client_data.get("type") == "create_profile":
+                new_profile_name = client_data.get("name", "").strip()
+                if new_profile_name:
+                    print(f"\n[SERWER] Rozpoczęcie kalibracji dla profilu: {new_profile_name}")
+                    cap = cv2.VideoCapture(0)
+                    mp_pose = mp.solutions.pose
+                    mp_drawing = mp.solutions.drawing_utils
 
-                        frame = cv2.flip(frame, 1)
-                        rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-                        results = pose.process(rgb)
+                    samples = []
+                    collecting = False
+                    start_time = None
+                    calibration_data = None
 
-                        visibility = 0.0
-                        progress = 0.0
+                    with mp_pose.Pose(min_detection_confidence=0.7, min_tracking_confidence=0.7, model_complexity=1) as pose:
+                        while True:
+                            ret, frame = cap.read()
+                            if not ret:
+                                await asyncio.sleep(0.01)
+                                continue
 
-                        if results.pose_landmarks:
-                            mp_drawing.draw_landmarks(
-                                frame, results.pose_landmarks, mp_pose.POSE_CONNECTIONS,
-                                mp_drawing.DrawingSpec(color=(0, 255, 120), thickness=2, circle_radius=3),
-                                mp_drawing.DrawingSpec(color=(255, 255, 0), thickness=2)
-                            )
+                            frame = cv2.flip(frame, 1)
+                            rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+                            results = pose.process(rgb)
 
-                            lm = results.pose_landmarks.landmark
-                            visibility = (lm[11].visibility + lm[12].visibility) / 2.0
+                            visibility = 0.0
+                            progress = 0.0
 
-                            # Zbieranie próbek
-                            if collecting and visibility > 0.6:
-                                sample = {}
-                                for name, idx in LANDMARKS_TO_USE.items():
-                                    p = lm[idx]
-                                    sample[f"{name}_x"] = p.x
-                                    sample[f"{name}_y"] = p.y
-                                    sample[f"{name}_z"] = p.z
-                                samples.append(sample)
+                            if results.pose_landmarks:
+                                mp_drawing.draw_landmarks(
+                                    frame, results.pose_landmarks, mp_pose.POSE_CONNECTIONS,
+                                    mp_drawing.DrawingSpec(color=(0, 255, 120), thickness=2, circle_radius=3),
+                                    mp_drawing.DrawingSpec(color=(255, 255, 0), thickness=2)
+                                )
 
-                        # Sprawdź czas kalibracji
-                        if collecting and start_time:
-                            elapsed = time.time() - start_time
-                            progress = min(elapsed / 5.0, 1.0)
+                                lm = results.pose_landmarks.landmark
+                                visibility = (lm[11].visibility + lm[12].visibility) / 2.0
 
-                            if elapsed >= 5.0:
-                                if len(samples) >= 10:
-                                    # Uśrednij próbki
-                                    keys = samples[0].keys()
-                                    calibration_data = {}
-                                    for key in keys:
-                                        values = [s[key] for s in samples]
-                                        calibration_data[key] = float(np.mean(values))
-                                    print(f"✅ Zebrano {len(samples)} próbek kalibracyjnych!")
-                                else:
-                                    print("❌ Za mało próbek!")
-                                    samples = []
-                                    collecting = False
-                                    start_time = None
+                                if collecting and visibility > 0.6:
+                                    sample = {}
+                                    for name, idx in LANDMARKS_TO_USE.items():
+                                        p = lm[idx]
+                                        sample[f"{name}_x"] = p.x
+                                        sample[f"{name}_y"] = p.y
+                                        sample[f"{name}_z"] = p.z
+                                    samples.append(sample)
 
-                                if calibration_data:
-                                    break
+                            if collecting and start_time:
+                                elapsed = time.time() - start_time
+                                progress = min(elapsed / 5.0, 1.0)
 
-                        # Wyślij klatkę do Electrona
-                        _, buffer = cv2.imencode('.jpg', frame, [cv2.IMWRITE_JPEG_QUALITY, 60])
-                        frame_base64 = base64.b64encode(buffer).decode('utf-8')
+                                if elapsed >= 5.0:
+                                    if len(samples) >= 10:
+                                        keys = samples[0].keys()
+                                        calibration_data = {}
+                                        for key in keys:
+                                            values = [s[key] for s in samples]
+                                            calibration_data[key] = float(np.mean(values))
+                                        print(f"✅ Zebrano {len(samples)} próbek kalibracyjnych!")
+                                    else:
+                                        print("❌ Za mało próbek!")
+                                        samples = []
+                                        collecting = False
+                                        start_time = None
 
-                        send_data = {
-                            "type": "calibration_frame",
-                            "image": frame_base64,
-                            "visibility": float(visibility),
-                            "collecting": collecting,
-                            "progress": float(progress)
+                                    if calibration_data:
+                                        break
+
+                            _, buffer = cv2.imencode('.jpg', frame, [cv2.IMWRITE_JPEG_QUALITY, 60])
+                            frame_base64 = base64.b64encode(buffer).decode('utf-8')
+
+                            send_data = {
+                                "type": "calibration_frame",
+                                "image": frame_base64,
+                                "visibility": float(visibility),
+                                "collecting": collecting,
+                                "progress": float(progress)
+                            }
+
+                            try:
+                                await websocket.send(json.dumps(send_data))
+                                await asyncio.sleep(0.03)
+
+                                try:
+                                    cmd_msg = await asyncio.wait_for(websocket.recv(), timeout=0.001)
+                                    cmd = json.loads(cmd_msg)
+                                    if cmd.get("type") == "start_calibration" and not collecting:
+                                        collecting = True
+                                        start_time = time.time()
+                                        samples = []
+                                        print("▶ Rozpoczęto zbieranie próbek...")
+                                    elif cmd.get("type") == "cancel_calibration":
+                                        print("❌ Anulowano kalibrację")
+                                        cap.release()
+                                        await websocket.send(json.dumps({"type": "profiles_list", "data": get_profiles_list()}))
+                                        break
+                                except asyncio.TimeoutError:
+                                    pass
+
+                            except websockets.exceptions.ConnectionClosed:
+                                cap.release()
+                                return
+
+                    cap.release()
+
+                    if calibration_data:
+                        if not os.path.exists(PROFILES_DIR):
+                            os.makedirs(PROFILES_DIR)
+
+                        profile_path = os.path.join(PROFILES_DIR, f"{new_profile_name}.json")
+                        profile_content = {
+                            "name": new_profile_name,
+                            "calibration": calibration_data,
+                            "created_at": time.strftime("%Y-%m-%d %H:%M:%S")
                         }
 
-                        try:
-                            await websocket.send(json.dumps(send_data))
-                            await asyncio.sleep(0.03)
+                        with open(profile_path, "w", encoding="utf-8") as f:
+                            json.dump(profile_content, f, indent=2, ensure_ascii=False)
 
-                            # Sprawdź czy nadeszła komenda
-                            try:
-                                msg = await asyncio.wait_for(websocket.recv(), timeout=0.001)
-                                cmd = json.loads(msg)
-                                if cmd.get("type") == "start_calibration" and not collecting:
-                                    collecting = True
-                                    start_time = time.time()
-                                    samples = []
-                                    print("▶ Rozpoczęto zbieranie próbek...")
-                                elif cmd.get("type") == "cancel_calibration":
-                                    print("❌ Anulowano kalibrację")
-                                    cap.release()
-                                    await websocket.send(json.dumps({"type": "profiles_list", "data": get_profiles_list()}))
-                                    break
-                            except asyncio.TimeoutError:
-                                pass
+                        print(f"✅ Profil '{new_profile_name}' zapisany!")
+                        await websocket.send(json.dumps({"type": "profile_created", "name": new_profile_name}))
+                continue
 
-                        except websockets.exceptions.ConnectionClosed:
-                            print("\n[SERWER] Połączenie zamknięte podczas kalibracji")
-                            cap.release()
-                            return
+            if client_data.get("type") == "get_profiles":
+                await websocket.send(json.dumps({"type": "profiles_list", "data": get_profiles_list()}))
+                continue
 
-                cap.release()
+            if client_data.get("type") == "select_profile":
+                profile_name = client_data["name"]
+                break
 
-                # Zapisz profil jeśli kalibracja się powiodła
-                if calibration_data:
-                    if not os.path.exists(PROFILES_DIR):
-                        os.makedirs(PROFILES_DIR)
-
-                    profile_path = os.path.join(PROFILES_DIR, f"{profile_name}.json")
-                    profile_content = {
-                        "name": profile_name,
-                        "calibration": calibration_data,
-                        "created_at": time.strftime("%Y-%m-%d %H:%M:%S")
-                    }
-
-                    with open(profile_path, "w", encoding="utf-8") as f:
-                        json.dump(profile_content, f, indent=2, ensure_ascii=False)
-
-                    print(f"✅ Profil '{profile_name}' zapisany w {profile_path}")
-                    await websocket.send(json.dumps({"type": "profile_created", "name": profile_name}))
-
-            continue
-
-        # Obsługa odświeżania listy profili
-        if client_data.get("type") == "get_profiles":
-            await websocket.send(json.dumps({"type": "profiles_list", "data": get_profiles_list()}))
-            continue
-
-        # Obsługa wyboru profilu
-        if client_data.get("type") == "select_profile":
-            break
-
-    # 3. Kontynuuj z wybranym profilem
-    if client_data.get("type") == "select_profile":
-        profile_name = client_data["name"]
+        # KONTYNUACJA Z WYBRANYM PROFILEM
         profile_path = os.path.join(PROFILES_DIR, f"{profile_name}.json")
-
         with open(profile_path, "r", encoding="utf-8") as f:
             profile_data = json.load(f)
 
         calibration = profile_data.get("calibration")
         if not calibration:
             print(f"[BŁĄD] Profil {profile_name} nie ma kalibracji!")
-            return
+            continue
 
         print(f"\n[SERWER] Załadowano profil '{profile_name}'. Odpalam kamerę!")
 
-        # 4. START KAMERY
         cap = cv2.VideoCapture(0)
         mp_pose = mp.solutions.pose
         mp_drawing = mp.solutions.drawing_utils
@@ -226,8 +234,15 @@ async def posture_server(websocket):
         bad_since = None
         bad_seconds = 0.0
 
+        # --- NOWE ZMIENNE DO ĆWICZEŃ ---
+        total_bad_seconds = 0.0
+        STRETCH_LIMIT = 15.0  # Zmień na 300.0 (5 minut) na obronę!
+        last_time = time.time()
+
+        session_active = True
+
         with mp_pose.Pose(min_detection_confidence=0.6, min_tracking_confidence=0.6, model_complexity=1) as pose:
-            while True:
+            while session_active:
                 ret, frame = cap.read()
                 if not ret:
                     await asyncio.sleep(0.01)
@@ -260,13 +275,28 @@ async def posture_server(websocket):
                     if len(predictions) > SMOOTH_N: predictions.pop(0)
                     label = 1 if predictions.count(1) >= int(SMOOTH_N * 0.7) else 0
 
-                now = time.time()
-                if label == 1:
-                    if bad_since is None: bad_since = now
-                    bad_seconds = now - bad_since
-                else:
-                    bad_since = None
-                    bad_seconds = 0.0
+
+                    now = time.time()
+                    dt = now - last_time
+                    last_time = now
+
+                    if label == 1:
+                        if bad_since is None:
+                            bad_since = now
+                        bad_seconds = now - bad_since
+
+                        # MAGIA JEST TUTAJ:
+                        # Do sumy dodajemy czas TYLKO WTEDY, gdy kotek jest JUŻ zły
+                        # (czyli zgarbienie trwa bez przerwy ponad 3 sekundy).
+                        if bad_seconds >= 3.0:
+                            total_bad_seconds += dt
+                    else:
+                        bad_since = None
+                        bad_seconds = 0.0
+
+                    # Print do terminala w PyCharmie, żebyś widziała jak rośnie limit!
+                    if bad_seconds >= 3.0:
+                        print(f"[ALERT] Ignorujesz kota! Zebrano: {total_bad_seconds:.1f}s / {STRETCH_LIMIT}s")
 
                 _, buffer = cv2.imencode('.jpg', frame, [cv2.IMWRITE_JPEG_QUALITY, 60])
                 frame_base64 = base64.b64encode(buffer).decode('utf-8')
@@ -281,12 +311,37 @@ async def posture_server(websocket):
 
                 try:
                     await websocket.send(json.dumps(send_data))
+
+                    # --- SPRAWDZENIE CZY CZAS NA ĆWICZENIA ---
+                    if total_bad_seconds >= STRETCH_LIMIT:
+                        print("\n[SERWER] Limit złej postawy osiągnięty! Wysyłam alert o ćwiczeniach.")
+                        await websocket.send(json.dumps({"type": "stretch_alert"}))
+                        total_bad_seconds = 0.0  # Zerujemy licznik zmęczenia
+
                     await asyncio.sleep(0.03)
+
+                    # NASŁUCHIWANIE NA KOMENDĘ "ZMIEŃ PROFIL" LUB "ZROBIONE ĆWICZENIE"
+                    try:
+                        cmd_msg = await asyncio.wait_for(websocket.recv(), timeout=0.001)
+                        cmd = json.loads(cmd_msg)
+                        if cmd.get("type") == "stop_session":
+                            print("\n[SERWER] Zatrzymano sesję kamery. Powrót do menu.")
+                            session_active = False
+                        elif cmd.get("type") == "stretch_done":
+                            print("\n[SERWER] Użytkownik wykonał ćwiczenie. Wznawiam analizę.")
+                            last_time = time.time()  # Resetujemy timer po pauzie na ekran ćwiczeń
+                            bad_since = None
+                    except asyncio.TimeoutError:
+                        pass
+
+
                 except websockets.exceptions.ConnectionClosed:
                     print("\n[SERWER] Zamknięto okno aplikacji. Python gotowy na kolejne połączenie.")
-                    break
+                    cap.release()
+                    return
 
         cap.release()
+        # Po wyjściu z pętli kamery skrypt grzecznie wraca na początek "GŁÓWNEJ PĘTLI SESJI"
 
 
 async def main():
