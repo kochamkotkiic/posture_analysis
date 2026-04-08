@@ -1,32 +1,94 @@
-# Środowiska wirtualne (TEGO GIT MA NIE WIDZIEĆ!)
+# ============================================
+# 🔴 ŚRODOWISKA WIRTUALNE
+# ============================================
 .venv/
 venv/
 env/
 ENV/
 
-# Pliki tymczasowe Pythona
+# ============================================
+# 🔴 PYTHONOWE ŚMIECI
+# ============================================
 __pycache__/
 *.py[cod]
 *$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
 
-# Ustawienia edytorów (PyCharm, VS Code)
+# ============================================
+# 🔴 JUPYTER NOTEBOOK ŚMIECI
+# ============================================
+.ipynb_checkpoints/
+*/.ipynb_checkpoints/
+*.ipynb_checkpoints/
+.jupyter/
+
+# ============================================
+# 🔴 DUŻE PLIKI - NAGRANIA I KLATKI
+# ============================================
+data/raw_frames/
+data/raw_video/
+*.mp4
+*.avi
+*.mov
+*.flv
+
+# ============================================
+# 🔴 MODELE I CACHE'E (JEŚLI SĄ REGENEROWALNE)
+# ============================================
+models/scaler.pkl
+models/*.h5
+models/*.pt
+
+# ============================================
+# 🔴 CSV'Y Z ANALIZY (TYMCZASOWE WYNIKI)
+# ============================================
+wyniki_z_klatek.csv
+*.csv
+
+# ============================================
+# 🔴 EDYTORY I IDE
+# ============================================
 .idea/
 .vscode/
-
-# Systemowe śmieci
+*.swp
+*.swo
+*~
 .DS_Store
 Thumbs.db
 
-# Ignorujemy modele (bo będą za duże na GitHuba)
-*.pt
-*.h5
-*.pkl
-
-# (Opcjonalnie) Ignorujemy plik z danymi, jeśli nie chcesz wysyłać swoich współrzędnych do sieci
-# Jeśli chcesz go wysłać prowadzącemu na GitHubie, usuń poniższą linijkę:
-# data/posture_data.csv
-# Node.js i Electron
+# ============================================
+# 🔴 NODE.JS / FRONTEND
+# ============================================
 node_modules/
-
-# Opcjonalnie ignorujemy logi z błędami npm (jeśli by się pojawiły)
 npm-debug.log
+yarn-error.log
+
+# ============================================
+# 🔴 LOKALNE KONFIGURACJE
+# ============================================
+.env
+.env.local
+config_local.json
+
+# ============================================
+# 🔴 LOGI
+# ============================================
+*.log
+logs/
