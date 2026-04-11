@@ -93,6 +93,7 @@
        </div>
 
         <div class="controls" id="controls" style="max-width: 600px; margin-top: 15px; display: flex; gap: 15px; width: 100%;">
+            <button id="btn-stats" style="padding: 15px; font-size: 14px; flex: 1; background: rgba(0,255,120,0.15); border: 2px solid #00aa55; border-radius: 8px; color: white; cursor: pointer;">📊 Statystyki</button>
             <button id="btn-overlay" style="padding: 15px; font-size: 16px; flex: 1; background: rgba(255,255,255,0.1); border: 2px solid #555; border-radius: 8px; color: white; cursor: pointer;">Pływający Kotek</button>
             <button id="btn-change-profile" style="padding: 15px; font-size: 16px; flex: 1; background: rgba(255, 165, 0, 0.3); border: 2px solid #ffa500; border-radius: 8px; color: white; cursor: pointer;">Powrót do menu</button>
             <button id="btn-close-main" style="padding: 15px; font-size: 16px; flex: 1; background: rgba(255,51,102,0.3); border: 2px solid #ff3366; border-radius: 8px; color: white; cursor: pointer;">Zamknij Program</button>
@@ -106,6 +107,51 @@
 
         <span style="color: #aaa; font-size: 12px; font-style: italic;">(Kliknij ten komunikat, gdy skończysz)</span>
     </div>
+    <!-- EKRAN STATYSTYK -->
+    <div id="stats-screen" style="display: none; position: fixed; top: 35px; left: 0; right: 0; bottom: 0; background: rgba(20,20,25,0.98); z-index: 500; overflow-y: auto; padding: 20px; flex-direction: column; gap: 15px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;">
+            <h2 style="color: #00ff78; font-size: 20px; text-shadow: 0 0 10px rgba(0,255,120,0.4);">📊 Statystyki Postawy</h2>
+            <button id="btn-stats-close" style="flex: 0; width: auto; padding: 4px 10px; background: rgba(255,51,102,0.2); border: 1px solid #ff3366; border-radius: 6px; color: #ff3366; cursor: pointer; font-size: 11px;">✕</button>
+        </div>
+
+        <!-- Bieżąca sesja -->
+        <div class="status-panel" style="text-align: left; padding: 18px; margin-bottom: 0;">
+            <h3 style="color: #ffa500; margin-bottom: 10px; font-size: 15px;">⏱ Bieżąca sesja</h3>
+            <p id="stats-current-time" style="color: #aaa; font-size: 12px; margin-bottom: 10px;"></p>
+            <div style="margin-bottom: 10px;">
+                <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
+                    <span style="color: #aaa; font-size: 13px;">Dobra postawa</span>
+                    <span id="stats-good-pct" style="color: #00ff78; font-weight: bold; font-size: 13px;">--%</span>
+                </div>
+                <div class="progress-bar-bg" style="height: 10px;">
+                    <div id="stats-good-bar" style="height: 100%; width: 0%; background: #00ff78; box-shadow: 0 0 8px #00ff78; border-radius: 10px; transition: width 0.5s;"></div>
+                </div>
+            </div>
+            <div style="display: flex; gap: 25px; margin-top: 8px;">
+                <div>
+                    <span style="color: #aaa; font-size: 11px; display: block;">😸 Dobra</span>
+                    <span id="stats-good-time" style="color: #00ff78; font-weight: bold; font-size: 15px;">--</span>
+                </div>
+                <div>
+                    <span style="color: #aaa; font-size: 11px; display: block;">😾 Zła</span>
+                    <span id="stats-bad-time" style="color: #ff3366; font-weight: bold; font-size: 15px;">--</span>
+                </div>
+                <div>
+                    <span style="color: #aaa; font-size: 11px; display: block;">🚨 Alerty</span>
+                    <span id="stats-alerts-count" style="color: #ffa500; font-weight: bold; font-size: 15px;">0</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Historia -->
+        <div class="status-panel" style="text-align: left; padding: 18px; margin-bottom: 0; flex: 1;">
+            <h3 style="color: #ffa500; margin-bottom: 12px; font-size: 15px;">📅 Historia sesji</h3>
+            <div id="stats-history-list" style="display: flex; flex-direction: column; gap: 10px;">
+                <p style="color: #aaa; text-align: center; font-size: 13px;">Ładowanie historii...</p>
+            </div>
+        </div>
+    </div>
+
     <script>
         const { ipcRenderer } = require('electron');
 
@@ -125,6 +171,12 @@
 
         let currentMode = 'main';
         let previousMode = 'main'; // Dodajemy pamięć, żeby wiedzieć gdzie wrócić!
+
+        // Śledzenie statystyk bieżącej sesji
+        let sessionStartTime = null;
+        let currentTotalGood = 0;
+        let currentTotalBad = 0;
+        let currentAlerts = 0;
 
         function setMode(mode) {
             if (mode === 'popup') previousMode = currentMode;
@@ -251,13 +303,15 @@
         // ZMIANA: Obsługa kliknięcia w "Zmień Profil"
         document.getElementById('btn-change-profile').addEventListener('click', () => {
             if (wsReady) {
-                // Wyślij sygnał do Pythona, żeby wyłączył kamerę
                 ws.send(JSON.stringify({ type: "stop_session" }));
             }
-
-            // Ukryj kamerę, pokaż listę profili
+            document.getElementById('stats-screen').style.display = 'none';
             document.getElementById('main-screen').style.display = 'none';
             document.getElementById('profile-screen').style.display = 'flex';
+            sessionStartTime = null;
+            currentTotalGood = 0;
+            currentTotalBad = 0;
+            currentAlerts = 0;
         });
 
         ws.onmessage = (event) => {
@@ -328,6 +382,10 @@
                             }
                         };
                         btn.onclick = () => {
+                            sessionStartTime = new Date();
+                            currentTotalGood = 0;
+                            currentTotalBad = 0;
+                            currentAlerts = 0;
                             ws.send(JSON.stringify({ type: "select_profile", name: profileName }));
                             document.getElementById('profile-screen').style.display = 'none';
                             document.getElementById('main-screen').style.display = 'flex';
@@ -413,11 +471,22 @@
                 badTimeBar.style.width = (progress * 100) + '%';
 
                 if (progress >= 1.0) alertText.innerText = "🚨 ALERT: WYPROSTUJ SIĘ!";
+
+                // Aktualizuj statystyki sesji
+                if (data.total_good_seconds !== undefined) currentTotalGood = data.total_good_seconds;
+                if (data.total_bad_seconds !== undefined) currentTotalBad = data.total_bad_seconds;
+                if (document.getElementById('stats-screen').style.display === 'flex') {
+                    updateCurrentSessionStats();
+                }
+            }
+
+            if (data.type === "stats_data") {
+                renderStatsHistory(data.sessions);
             }
 
             // --- ODBIÓR ALERTU O ROZCIĄGANIU ---
             if (data.type === "stretch_alert") {
-                // Włączamy nasz nowy, dedykowany tryb!
+                currentAlerts++;
                 setMode('popup');
 
                 const popup = document.getElementById('stretch-popup');
@@ -426,6 +495,114 @@
                 setTimeout(() => { popup.style.opacity = '1'; }, 10);
             }
         };
+
+        // --- STATYSTYKI ---
+        const POLISH_MONTHS = ['sty', 'lut', 'mar', 'kwi', 'maj', 'cze', 'lip', 'sie', 'wrz', 'paź', 'lis', 'gru'];
+
+        function formatDuration(seconds) {
+            const h = Math.floor(seconds / 3600);
+            const m = Math.floor((seconds % 3600) / 60);
+            const s = Math.floor(seconds % 60);
+            if (h > 0) return `${h}h ${m}min`;
+            if (m > 0) return `${m}min ${s}s`;
+            return `${s}s`;
+        }
+
+        function formatDate(dateStr) {
+            const [year, month, day] = dateStr.split('-').map(Number);
+            const today = new Date();
+            const sessionDate = new Date(year, month - 1, day);
+            const diffDays = Math.round((today - sessionDate) / (1000 * 60 * 60 * 24));
+            if (diffDays === 0) return 'Dzisiaj';
+            if (diffDays === 1) return 'Wczoraj';
+            return `${day} ${POLISH_MONTHS[month - 1]}`;
+        }
+
+        function timeToSeconds(timeStr) {
+            const [h, m, s] = timeStr.split(':').map(Number);
+            return h * 3600 + m * 60 + s;
+        }
+
+        function findWorstMoment(events, sessionEndTime) {
+            let worst = null;
+            let worstDuration = 0;
+            for (let i = 0; i < events.length; i++) {
+                if (events[i].state === 'bad') {
+                    let endTimeStr;
+                    if (i + 1 < events.length) {
+                        endTimeStr = events[i + 1].time;
+                    } else if (sessionEndTime) {
+                        endTimeStr = sessionEndTime.split(' ')[1]; // "YYYY-MM-DD HH:MM:SS" → "HH:MM:SS"
+                    } else {
+                        continue;
+                    }
+                    const duration = timeToSeconds(endTimeStr) - timeToSeconds(events[i].time);
+                    if (duration > worstDuration) {
+                        worstDuration = duration;
+                        worst = { start: events[i].time.slice(0, 5), duration };
+                    }
+                }
+            }
+            return worst;
+        }
+
+        function updateCurrentSessionStats() {
+            const total = currentTotalGood + currentTotalBad;
+            const goodPct = total > 0 ? Math.round(currentTotalGood / total * 100) : 0;
+            const startStr = sessionStartTime
+                ? sessionStartTime.toLocaleTimeString('pl-PL', { hour: '2-digit', minute: '2-digit' })
+                : '--';
+            document.getElementById('stats-current-time').innerText = `Sesja od: ${startStr}`;
+            document.getElementById('stats-good-pct').innerText = `${goodPct}%`;
+            document.getElementById('stats-good-bar').style.width = `${goodPct}%`;
+            document.getElementById('stats-good-time').innerText = formatDuration(currentTotalGood);
+            document.getElementById('stats-bad-time').innerText = formatDuration(currentTotalBad);
+            document.getElementById('stats-alerts-count').innerText = currentAlerts;
+        }
+
+        function renderStatsHistory(sessions) {
+            const listDiv = document.getElementById('stats-history-list');
+            listDiv.innerHTML = '';
+            if (!sessions || sessions.length === 0) {
+                listDiv.innerHTML = '<p style="color: #aaa; text-align: center; font-size: 13px;">Brak poprzednich sesji. Ta pojawi się tu po zamknięciu.</p>';
+                return;
+            }
+            sessions.forEach(session => {
+                const total = (session.good_seconds || 0) + (session.bad_seconds || 0);
+                const goodPct = total > 0 ? Math.round(session.good_seconds / total * 100) : 0;
+                const dateStr = formatDate(session.date);
+                const duration = formatDuration(total);
+                const worst = findWorstMoment(session.events || [], session.end_time);
+                const barColor = goodPct >= 70 ? '#00ff78' : goodPct >= 50 ? '#ffa500' : '#ff3366';
+
+                const row = document.createElement('div');
+                row.className = 'stats-history-row';
+                row.innerHTML = `
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                        <span style="color: #fff; font-weight: 600; font-size: 14px;">${dateStr}</span>
+                        <span style="color: #aaa; font-size: 12px;">${duration} &nbsp;|&nbsp; 🚨 ${session.alerts || 0}</span>
+                    </div>
+                    <div class="progress-bar-bg" style="height: 10px; margin-bottom: 5px;">
+                        <div style="height:100%; width:${goodPct}%; background:${barColor}; box-shadow:0 0 6px ${barColor}; border-radius:10px; transition:width 0.5s;"></div>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <span style="color: ${barColor}; font-size: 12px; font-weight: bold;">${goodPct}% dobrej postawy</span>
+                        ${worst ? `<span style="color: #888; font-size: 11px;">Najgorzej: ${worst.start} (${formatDuration(worst.duration)})</span>` : ''}
+                    </div>
+                `;
+                listDiv.appendChild(row);
+            });
+        }
+
+        document.getElementById('btn-stats').addEventListener('click', () => {
+            updateCurrentSessionStats();
+            document.getElementById('stats-screen').style.display = 'flex';
+            if (wsReady) ws.send(JSON.stringify({ type: "get_stats" }));
+        });
+
+        document.getElementById('btn-stats-close').addEventListener('click', () => {
+            document.getElementById('stats-screen').style.display = 'none';
+        });
 
         // --- DRAGGABLE MINI-WINDOW (NAPRAWIONE) ---
         let isDragging = false;

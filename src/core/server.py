@@ -15,6 +15,8 @@ BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__fil
 sys.path.insert(0, BASE_DIR)
 
 from src.core.normalizer import normalize_features
+from datetime import datetime
+from src.core.profile_manager import save_session, get_sessions
 
 MODEL_PATH = os.path.join(BASE_DIR, "models", "posture_model.pkl")
 SCALER_PATH = os.path.join(BASE_DIR, "models", "scaler.pkl")
@@ -236,10 +238,15 @@ async def posture_server(websocket):
 
         # --- NOWE ZMIENNE DO ĆWICZEŃ ---
         total_bad_seconds = 0.0
-        STRETCH_LIMIT = 15.0  # Zmień na 300.0 (5 minut) na obronę!
+        STRETCH_LIMIT = 300  # Zmień na 300.0 (5 minut) na obronę!
         last_time = time.time()
 
         session_active = True
+        session_start = datetime.now()
+        session_events = []
+        session_alerts = 0
+        total_good_seconds = 0.0
+        last_label_for_events = -1
 
         with mp_pose.Pose(min_detection_confidence=0.6, min_tracking_confidence=0.6, model_complexity=1) as pose:
             while session_active:
@@ -294,6 +301,16 @@ async def posture_server(websocket):
                         bad_since = None
                         bad_seconds = 0.0
 
+                    # Zliczanie dobrego czasu i rejestrowanie zmian stanu
+                    if label == 0:
+                        total_good_seconds += dt
+                    if label != last_label_for_events:
+                        session_events.append({
+                            "time": datetime.now().strftime("%H:%M:%S"),
+                            "state": "good" if label == 0 else "bad"
+                        })
+                        last_label_for_events = label
+
                     # Print do terminala w PyCharmie, żebyś widziała jak rośnie limit!
                     if bad_seconds >= 3.0:
                         print(f"[ALERT] Ignorujesz kota! Zebrano: {total_bad_seconds:.1f}s / {STRETCH_LIMIT}s")
@@ -306,6 +323,8 @@ async def posture_server(websocket):
                     "label": int(label),
                     "confidence": confidence,
                     "bad_seconds": float(bad_seconds),
+                    "total_bad_seconds": float(total_bad_seconds),
+                    "total_good_seconds": float(total_good_seconds),
                     "image": frame_base64
                 }
 
@@ -316,6 +335,7 @@ async def posture_server(websocket):
                     if total_bad_seconds >= STRETCH_LIMIT:
                         print("\n[SERWER] Limit złej postawy osiągnięty! Wysyłam alert o ćwiczeniach.")
                         await websocket.send(json.dumps({"type": "stretch_alert"}))
+                        session_alerts += 1
                         total_bad_seconds = 0.0  # Zerujemy licznik zmęczenia
 
                     await asyncio.sleep(0.03)
@@ -326,17 +346,44 @@ async def posture_server(websocket):
                         cmd = json.loads(cmd_msg)
                         if cmd.get("type") == "stop_session":
                             print("\n[SERWER] Zatrzymano sesję kamery. Powrót do menu.")
+                            session_duration = (datetime.now() - session_start).total_seconds()
+                            if session_duration >= 10:
+                                save_session(profile_name, {
+                                    "date": session_start.strftime("%Y-%m-%d"),
+                                    "start_time": session_start.strftime("%Y-%m-%d %H:%M:%S"),
+                                    "end_time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                                    "good_seconds": round(total_good_seconds, 1),
+                                    "bad_seconds": round(total_bad_seconds, 1),
+                                    "alerts": session_alerts,
+                                    "events": session_events
+                                })
+                                print(f"[SERWER] Sesja zapisana dla profilu: {profile_name}")
                             session_active = False
                         elif cmd.get("type") == "stretch_done":
                             print("\n[SERWER] Użytkownik wykonał ćwiczenie. Wznawiam analizę.")
                             last_time = time.time()  # Resetujemy timer po pauzie na ekran ćwiczeń
                             bad_since = None
+                        elif cmd.get("type") == "get_stats":
+                            sessions = get_sessions(profile_name)
+                            await websocket.send(json.dumps({"type": "stats_data", "sessions": sessions}))
                     except asyncio.TimeoutError:
                         pass
 
 
                 except websockets.exceptions.ConnectionClosed:
                     print("\n[SERWER] Zamknięto okno aplikacji. Python gotowy na kolejne połączenie.")
+                    session_duration = (datetime.now() - session_start).total_seconds()
+                    if session_duration >= 10:
+                        save_session(profile_name, {
+                            "date": session_start.strftime("%Y-%m-%d"),
+                            "start_time": session_start.strftime("%Y-%m-%d %H:%M:%S"),
+                            "end_time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                            "good_seconds": round(total_good_seconds, 1),
+                            "bad_seconds": round(total_bad_seconds, 1),
+                            "alerts": session_alerts,
+                            "events": session_events
+                        })
+                        print(f"[SERWER] Sesja zapisana (zamknięcie okna): {profile_name}")
                     cap.release()
                     return
 

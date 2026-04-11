@@ -221,3 +221,39 @@ button:hover {
     transform: translateY(-5px); /* Delikatne uniesienie */
     border-color: #00ff78 !important; /* Zmiana koloru ramki na zielony */
 }
+
+/* ===== EKRAN STATYSTYK ===== */
+#stats-screen {
+    scrollbar-width: thin;
+    scrollbar-color: #333 transparent;
+}
+
+#stats-screen::-webkit-scrollbar {
+    width: 6px;
+}
+
+#stats-screen::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+#stats-screen::-webkit-scrollbar-thumb {
+    background: #444;
+    border-radius: 3px;
+}
+
+.stats-history-row {
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 10px;
+    padding: 12px 14px;
+    transition: background 0.2s;
+}
+
+.stats-history-row:hover {
+    background: rgba(255, 255, 255, 0.07);
+}
+
+#btn-stats:hover {
+    background: rgba(0, 255, 120, 0.25) !important;
+    box-shadow: 0 0 12px rgba(0, 255, 120, 0.3);
+}

@@ -3,10 +3,11 @@ import os
 import time
 
 # --- KONFIGURACJA ---
-SESSION_NAME = "test_naturalny_1"  # Nazwa sesji
-OUTPUT_DIR = f"data/raw_frames/{SESSION_NAME}"
+# --- KONFIGURACJA ---
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+SESSION_NAME = "test_naturalny_2"  # Nazwa sesji
+OUTPUT_DIR = os.path.join(BASE_DIR, "data", "raw_frames", SESSION_NAME)
 os.makedirs(OUTPUT_DIR, exist_ok=True)
-
 
 def record_raw_frames():
     cap = cv2.VideoCapture(0)  # Ta sama kamera co w aplikacji

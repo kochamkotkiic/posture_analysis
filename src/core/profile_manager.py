@@ -86,3 +86,34 @@ def delete_profile(name: str) -> bool:
         os.remove(path)
         return True
     return False
+
+
+SESSIONS_DIR = os.path.join(BASE_DIR, "data", "sessions")
+
+
+def save_session(profile_name: str, session_data: dict):
+    """Zapisuje dane sesji do pliku JSON."""
+    profile_sessions_dir = os.path.join(SESSIONS_DIR, profile_name.lower())
+    os.makedirs(profile_sessions_dir, exist_ok=True)
+    filename = session_data["start_time"].replace(":", "-").replace(" ", "_") + ".json"
+    path = os.path.join(profile_sessions_dir, filename)
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(session_data, f, indent=2, ensure_ascii=False)
+
+
+def get_sessions(profile_name: str, limit: int = 14) -> list[dict]:
+    """Zwraca ostatnie N sesji dla profilu, posortowane od najnowszej."""
+    profile_sessions_dir = os.path.join(SESSIONS_DIR, profile_name.lower())
+    if not os.path.exists(profile_sessions_dir):
+        return []
+    sessions = []
+    for fname in os.listdir(profile_sessions_dir):
+        if fname.endswith(".json"):
+            path = os.path.join(profile_sessions_dir, fname)
+            with open(path, "r", encoding="utf-8") as f:
+                try:
+                    sessions.append(json.load(f))
+                except Exception:
+                    pass
+    sessions.sort(key=lambda s: s.get("start_time", ""), reverse=True)
+    return sessions[:limit]

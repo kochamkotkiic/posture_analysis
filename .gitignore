@@ -43,6 +43,7 @@ MANIFEST
 # 🔴 DUŻE PLIKI - NAGRANIA I KLATKI
 # ============================================
 data/raw_frames/
+data/sessions
 data/raw_video/
 *.mp4
 *.avi
