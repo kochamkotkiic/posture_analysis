@@ -11,7 +11,7 @@ def main():
     server_process = subprocess.Popen([sys.executable, "src/core/server.py"])
 
     # Dajemy serwerowi 2 sekundy na załadowanie modelu ML
-    time.sleep(2)
+    time.sleep(5)
 
     # 2. Uruchomienie interfejsu w Electronie
     print("🎨 Uruchamianie interfejsu graficznego...")

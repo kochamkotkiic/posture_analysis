@@ -239,6 +239,13 @@ async def posture_server(websocket):
         # --- NOWE ZMIENNE DO ĆWICZEŃ ---
         total_bad_seconds = 0.0
         STRETCH_LIMIT = 300  # Zmień na 300.0 (5 minut) na obronę!
+        RECOVERY_LIMIT = 300.0  # 5 minut (dobrej postawy, żeby zresetować licznik zgarbień)
+
+        last_time = time.time()
+
+        # Nowe zmienne dla dobrej postawy
+        good_since = None
+        good_seconds = 0.0
         last_time = time.time()
 
         session_active = True
@@ -282,36 +289,41 @@ async def posture_server(websocket):
                     if len(predictions) > SMOOTH_N: predictions.pop(0)
                     label = 1 if predictions.count(1) >= int(SMOOTH_N * 0.7) else 0
 
-
                     now = time.time()
                     dt = now - last_time
                     last_time = now
 
-                    if label == 1:
+                    if label == 1:  # --- ZŁA POSTAWA ---
+                        # Zerujemy liczniki "dobroci"
+                        good_since = None
+                        good_seconds = 0.0
+
                         if bad_since is None:
                             bad_since = now
                         bad_seconds = now - bad_since
 
-                        # MAGIA JEST TUTAJ:
-                        # Do sumy dodajemy czas TYLKO WTEDY, gdy kotek jest JUŻ zły
-                        # (czyli zgarbienie trwa bez przerwy ponad 3 sekundy).
                         if bad_seconds >= 3.0:
                             total_bad_seconds += dt
-                    else:
+
+                    else:  # --- DOBRA POSTAWA ---
+                        # Zerujemy liczniki chwilowego zgarbienia
                         bad_since = None
                         bad_seconds = 0.0
 
-                    # Zliczanie dobrego czasu i rejestrowanie zmian stanu
-                    if label == 0:
-                        total_good_seconds += dt
-                    if label != last_label_for_events:
-                        session_events.append({
-                            "time": datetime.now().strftime("%H:%M:%S"),
-                            "state": "good" if label == 0 else "bad"
-                        })
-                        last_label_for_events = label
+                        # Liczymy czas poprawnej postawy
+                        if good_since is None:
+                            good_since = now
+                        good_seconds = now - good_since
 
-                    # Print do terminala w PyCharmie, żebyś widziała jak rośnie limit!
+                        # Jeśli siedzisz prosto przez np. 5 minut, resetujemy dług wobec kota!
+                        if good_seconds >= RECOVERY_LIMIT:
+                            if total_bad_seconds > 0:
+                                print(
+                                    f"\n[SERWER] 🌿 Zregenerowano postawę! Resetuję licznik zmęczenia z {total_bad_seconds:.1f}s do 0.")
+                                total_bad_seconds = 0.0
+                            # Resetujemy good_since, żeby nie drukowało tego komunikatu co sekundę
+                            good_since = now
+
                     if bad_seconds >= 3.0:
                         print(f"[ALERT] Ignorujesz kota! Zebrano: {total_bad_seconds:.1f}s / {STRETCH_LIMIT}s")
 

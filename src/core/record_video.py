@@ -5,7 +5,7 @@ import time
 # --- KONFIGURACJA ---
 # --- KONFIGURACJA ---
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-SESSION_NAME = "test_naturalny_2"  # Nazwa sesji
+SESSION_NAME = "tylko_zle2_hubert_nisko"  # Nazwa sesji
 OUTPUT_DIR = os.path.join(BASE_DIR, "data", "raw_frames", SESSION_NAME)
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 
