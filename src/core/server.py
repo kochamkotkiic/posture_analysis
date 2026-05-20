@@ -225,6 +225,9 @@ async def posture_server(websocket):
             print(f"[BŁĄD] Profil {profile_name} nie ma kalibracji!")
             continue
 
+        STRETCH_LIMIT = 300    # 5 minut złej postawy → alert
+        RECOVERY_LIMIT = 120   # 2 minuty dobrej postawy → reset licznika
+        STRETCH_WARNING = int(STRETCH_LIMIT * 0.8)  # ostrzeżenie przy 240s
         print(f"\n[SERWER] Załadowano profil '{profile_name}'. Odpalam kamerę!")
 
         cap = cv2.VideoCapture(0)
@@ -236,17 +239,14 @@ async def posture_server(websocket):
         bad_since = None
         bad_seconds = 0.0
 
-        # --- NOWE ZMIENNE DO ĆWICZEŃ ---
-        total_bad_seconds = 0.0
-        STRETCH_LIMIT = 300  # Zmień na 300.0 (5 minut) na obronę!
-        RECOVERY_LIMIT = 300.0  # 5 minut (dobrej postawy, żeby zresetować licznik zgarbień)
+        total_bad_seconds = 0.0   # resetowany po każdym alercie (trigger)
+        session_total_bad = 0.0   # łączny czas złej postawy w sesji (do zapisu)
+        warning_sent = False
 
         last_time = time.time()
 
-        # Nowe zmienne dla dobrej postawy
         good_since = None
         good_seconds = 0.0
-        last_time = time.time()
 
         session_active = True
         session_start = datetime.now()
@@ -254,6 +254,11 @@ async def posture_server(websocket):
         session_alerts = 0
         total_good_seconds = 0.0
         last_label_for_events = -1
+
+        await websocket.send(json.dumps({
+            "type": "session_config",
+            "stretch_limit": STRETCH_LIMIT
+        }))
 
         with mp_pose.Pose(min_detection_confidence=0.6, min_tracking_confidence=0.6, model_complexity=1) as pose:
             while session_active:
@@ -268,6 +273,17 @@ async def posture_server(websocket):
 
                 label = 0
                 confidence = 1.0
+                person_visible = bool(results.pose_landmarks)
+
+                now = time.time()
+                dt = now - last_time
+                last_time = now
+
+                if not person_visible:
+                    bad_since = None
+                    bad_seconds = 0.0
+                    good_since = None
+                    good_seconds = 0.0
 
                 if results.pose_landmarks:
                     mp_drawing.draw_landmarks(
@@ -289,12 +305,7 @@ async def posture_server(websocket):
                     if len(predictions) > SMOOTH_N: predictions.pop(0)
                     label = 1 if predictions.count(1) >= int(SMOOTH_N * 0.7) else 0
 
-                    now = time.time()
-                    dt = now - last_time
-                    last_time = now
-
                     if label == 1:  # --- ZŁA POSTAWA ---
-                        # Zerujemy liczniki "dobroci"
                         good_since = None
                         good_seconds = 0.0
 
@@ -304,25 +315,33 @@ async def posture_server(websocket):
 
                         if bad_seconds >= 3.0:
                             total_bad_seconds += dt
+                            session_total_bad += dt
 
                     else:  # --- DOBRA POSTAWA ---
-                        # Zerujemy liczniki chwilowego zgarbienia
                         bad_since = None
                         bad_seconds = 0.0
 
-                        # Liczymy czas poprawnej postawy
+                        total_good_seconds += dt
+
                         if good_since is None:
                             good_since = now
                         good_seconds = now - good_since
 
-                        # Jeśli siedzisz prosto przez np. 5 minut, resetujemy dług wobec kota!
                         if good_seconds >= RECOVERY_LIMIT:
                             if total_bad_seconds > 0:
                                 print(
                                     f"\n[SERWER] 🌿 Zregenerowano postawę! Resetuję licznik zmęczenia z {total_bad_seconds:.1f}s do 0.")
                                 total_bad_seconds = 0.0
-                            # Resetujemy good_since, żeby nie drukowało tego komunikatu co sekundę
+                                warning_sent = False
                             good_since = now
+
+                    # Śledzenie zmian stanu postawy (eventy do statystyk)
+                    if label != last_label_for_events:
+                        session_events.append({
+                            "state": "bad" if label == 1 else "good",
+                            "time": datetime.now().strftime("%H:%M:%S")
+                        })
+                        last_label_for_events = label
 
                     if bad_seconds >= 3.0:
                         print(f"[ALERT] Ignorujesz kota! Zebrano: {total_bad_seconds:.1f}s / {STRETCH_LIMIT}s")
@@ -333,22 +352,31 @@ async def posture_server(websocket):
                 send_data = {
                     "type": "video_frame",
                     "label": int(label),
+                    "visible": person_visible,
                     "confidence": confidence,
                     "bad_seconds": float(bad_seconds),
                     "total_bad_seconds": float(total_bad_seconds),
                     "total_good_seconds": float(total_good_seconds),
+                    "stretch_progress": round(total_bad_seconds / STRETCH_LIMIT, 3),
                     "image": frame_base64
                 }
 
                 try:
                     await websocket.send(json.dumps(send_data))
 
-                    # --- SPRAWDZENIE CZY CZAS NA ĆWICZENIA ---
+                    # --- OSTRZEŻENIE (80% limitu) ---
+                    if total_bad_seconds >= STRETCH_WARNING and not warning_sent:
+                        print(f"\n[SERWER] Ostrzeżenie: {total_bad_seconds:.0f}s / {STRETCH_LIMIT}s")
+                        await websocket.send(json.dumps({"type": "stretch_warning"}))
+                        warning_sent = True
+
+                    # --- ALERT (100% limitu) ---
                     if total_bad_seconds >= STRETCH_LIMIT:
                         print("\n[SERWER] Limit złej postawy osiągnięty! Wysyłam alert o ćwiczeniach.")
                         await websocket.send(json.dumps({"type": "stretch_alert"}))
                         session_alerts += 1
-                        total_bad_seconds = 0.0  # Zerujemy licznik zmęczenia
+                        total_bad_seconds = 0.0
+                        warning_sent = False
 
                     await asyncio.sleep(0.03)
 
@@ -359,13 +387,13 @@ async def posture_server(websocket):
                         if cmd.get("type") == "stop_session":
                             print("\n[SERWER] Zatrzymano sesję kamery. Powrót do menu.")
                             session_duration = (datetime.now() - session_start).total_seconds()
-                            if session_duration >= 10:
+                            if session_duration >= 600:
                                 save_session(profile_name, {
                                     "date": session_start.strftime("%Y-%m-%d"),
                                     "start_time": session_start.strftime("%Y-%m-%d %H:%M:%S"),
                                     "end_time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
                                     "good_seconds": round(total_good_seconds, 1),
-                                    "bad_seconds": round(total_bad_seconds, 1),
+                                    "bad_seconds": round(session_total_bad, 1),
                                     "alerts": session_alerts,
                                     "events": session_events
                                 })
@@ -385,13 +413,13 @@ async def posture_server(websocket):
                 except websockets.exceptions.ConnectionClosed:
                     print("\n[SERWER] Zamknięto okno aplikacji. Python gotowy na kolejne połączenie.")
                     session_duration = (datetime.now() - session_start).total_seconds()
-                    if session_duration >= 10:
+                    if session_duration >= 600:
                         save_session(profile_name, {
                             "date": session_start.strftime("%Y-%m-%d"),
                             "start_time": session_start.strftime("%Y-%m-%d %H:%M:%S"),
                             "end_time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
                             "good_seconds": round(total_good_seconds, 1),
-                            "bad_seconds": round(total_bad_seconds, 1),
+                            "bad_seconds": round(session_total_bad, 1),
                             "alerts": session_alerts,
                             "events": session_events
                         })

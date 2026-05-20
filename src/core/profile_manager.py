@@ -101,7 +101,7 @@ def save_session(profile_name: str, session_data: dict):
         json.dump(session_data, f, indent=2, ensure_ascii=False)
 
 
-def get_sessions(profile_name: str, limit: int = 14) -> list[dict]:
+def get_sessions(profile_name: str, limit: int = 200) -> list[dict]:
     """Zwraca ostatnie N sesji dla profilu, posortowane od najnowszej."""
     profile_sessions_dir = os.path.join(SESSIONS_DIR, profile_name.lower())
     if not os.path.exists(profile_sessions_dir):

@@ -5,6 +5,11 @@
     font-family: 'Poppins', sans-serif;
 }
 
+@keyframes pulse-bar {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
+}
+
 body {
     background-color: rgba(20, 20, 25, 0.90); /* Piękna, delikatna przezroczystość */
     color: #ffffff;

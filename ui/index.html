@@ -83,6 +83,16 @@
                 <div class="progress-bar-fill" id="bad-time-bar" style="width: 0%;"></div>
             </div>
             <p class="alert-text" id="alert-text" style="font-size: 18px;">Ocena postawy...</p>
+
+            <div style="width: 100%; max-width: 600px; margin-top: 8px;">
+                <div style="display: flex; justify-content: space-between; margin-bottom: 3px;">
+                    <span style="color: #666; font-size: 11px;">Nagromadzona zła postawa</span>
+                    <span id="stretch-progress-text" style="color: #666; font-size: 11px;">0%</span>
+                </div>
+                <div class="progress-bar-bg" style="height: 7px;">
+                    <div id="stretch-progress-bar" style="height: 100%; width: 0%; background: #ffa500; box-shadow: 0 0 5px #ffa500; border-radius: 10px; transition: width 0.5s, background 0.3s;"></div>
+                </div>
+            </div>
         </div>
 
         <div id="mini-ui" style="display: none; width: 100%; height: 100%; align-items: center; justify-content: center;">
@@ -177,6 +187,8 @@
         let currentTotalGood = 0;
         let currentTotalBad = 0;
         let currentAlerts = 0;
+        let sessionStretchLimit = 300;
+        let stretchWarningActive = false;
 
         function setMode(mode) {
             if (mode === 'popup') previousMode = currentMode;
@@ -450,27 +462,51 @@
                 const alertText = document.getElementById('alert-text');
                 const badTimeBar = document.getElementById('bad-time-bar');
 
-                if (data.label === 0) {
-                    statusText.innerText = 'Postawa: Dobra!';
-                    statusText.style.color = '#00ff78';
-                    statusText.style.textShadow = '0px 0px 10px rgba(0, 255, 120, 0.4)';
-                    catAvatar.innerText = '😸';
-                    catAvatar.style.filter = 'drop-shadow(0px 0px 15px rgba(0, 255, 120, 0.5))';
+                if (data.visible === false) {
+                    statusText.innerText = 'Brak osoby w kadrze';
+                    statusText.style.color = '#666';
+                    statusText.style.textShadow = 'none';
+                    catAvatar.innerText = '🐱';
+                    catAvatar.style.filter = 'none';
+                    confText.innerText = 'Wróć przed kamerę';
+                    alertText.innerText = '';
+                    badTimeBar.style.width = '0%';
+                    const stretchBar = document.getElementById('stretch-progress-bar');
+                    const stretchText = document.getElementById('stretch-progress-text');
+                    if (stretchBar) stretchBar.style.width = '0%';
+                    if (stretchText) stretchText.innerText = '0%';
                 } else {
-                    statusText.innerText = 'Postawa: Zła!';
-                    statusText.style.color = '#ff3366';
-                    statusText.style.textShadow = '0px 0px 10px rgba(255, 51, 102, 0.4)';
-                    catAvatar.innerText = '😾';
-                    catAvatar.style.filter = 'drop-shadow(0px 0px 15px rgba(255, 51, 102, 0.5))';
+                    if (data.label === 0) {
+                        statusText.innerText = 'Postawa: Dobra!';
+                        statusText.style.color = '#00ff78';
+                        statusText.style.textShadow = '0px 0px 10px rgba(0, 255, 120, 0.4)';
+                        catAvatar.innerText = '😸';
+                        catAvatar.style.filter = 'drop-shadow(0px 0px 15px rgba(0, 255, 120, 0.5))';
+                    } else {
+                        statusText.innerText = 'Postawa: Zła!';
+                        statusText.style.color = '#ff3366';
+                        statusText.style.textShadow = '0px 0px 10px rgba(255, 51, 102, 0.4)';
+                        catAvatar.innerText = '😾';
+                        catAvatar.style.filter = 'drop-shadow(0px 0px 15px rgba(255, 51, 102, 0.5))';
+                    }
+
+                    confText.innerText = `Pewność modelu: ${(data.confidence * 100).toFixed(0)}%`;
+                    alertText.innerText = `Czas złej postawy: ${data.bad_seconds.toFixed(1)}s`;
+
+                    const progress = Math.min(data.bad_seconds / 3.0, 1.0);
+                    badTimeBar.style.width = (progress * 100) + '%';
+
+                    if (progress >= 1.0) alertText.innerText = "🚨 ALERT: WYPROSTUJ SIĘ!";
                 }
 
-                confText.innerText = `Pewność modelu: ${(data.confidence * 100).toFixed(0)}%`;
-                alertText.innerText = `Czas złej postawy: ${data.bad_seconds.toFixed(1)}s`;
-
-                const progress = Math.min(data.bad_seconds / 3.0, 1.0);
-                badTimeBar.style.width = (progress * 100) + '%';
-
-                if (progress >= 1.0) alertText.innerText = "🚨 ALERT: WYPROSTUJ SIĘ!";
+                // Aktualizuj pasek nagromadzenia złej postawy
+                if (data.visible !== false && data.stretch_progress !== undefined) {
+                    const pct = Math.min(data.stretch_progress * 100, 100);
+                    const stretchBar = document.getElementById('stretch-progress-bar');
+                    const stretchText = document.getElementById('stretch-progress-text');
+                    if (stretchBar) stretchBar.style.width = pct.toFixed(1) + '%';
+                    if (stretchText) stretchText.innerText = pct.toFixed(0) + '%';
+                }
 
                 // Aktualizuj statystyki sesji
                 if (data.total_good_seconds !== undefined) currentTotalGood = data.total_good_seconds;
@@ -484,9 +520,37 @@
                 renderStatsHistory(data.sessions);
             }
 
+            if (data.type === "session_config") {
+                sessionStretchLimit = data.stretch_limit || 300;
+            }
+
+            if (data.type === "stretch_warning") {
+                stretchWarningActive = true;
+                const bar = document.getElementById('stretch-progress-bar');
+                if (bar) {
+                    bar.style.background = '#ff3366';
+                    bar.style.boxShadow = '0 0 8px #ff3366';
+                    bar.style.animation = 'pulse-bar 1s infinite';
+                }
+                const alertEl = document.getElementById('alert-text');
+                if (alertEl && alertEl.innerText !== "🚨 ALERT: WYPROSTUJ SIĘ!") {
+                    alertEl.innerText = "⚠️ Zadbaj o postawę — niedługo przerwa!";
+                    alertEl.style.color = '#ffa500';
+                }
+            }
+
             // --- ODBIÓR ALERTU O ROZCIĄGANIU ---
             if (data.type === "stretch_alert") {
                 currentAlerts++;
+                stretchWarningActive = false;
+                const bar = document.getElementById('stretch-progress-bar');
+                if (bar) {
+                    bar.style.background = '#ffa500';
+                    bar.style.boxShadow = '0 0 5px #ffa500';
+                    bar.style.animation = '';
+                    bar.style.width = '0%';
+                }
+                document.getElementById('stretch-progress-text').innerText = '0%';
                 setMode('popup');
 
                 const popup = document.getElementById('stretch-popup');
@@ -560,24 +624,17 @@
             document.getElementById('stats-alerts-count').innerText = currentAlerts;
         }
 
-        function renderStatsHistory(sessions) {
-            const listDiv = document.getElementById('stats-history-list');
-            listDiv.innerHTML = '';
-            if (!sessions || sessions.length === 0) {
-                listDiv.innerHTML = '<p style="color: #aaa; text-align: center; font-size: 13px;">Brak poprzednich sesji. Ta pojawi się tu po zamknięciu.</p>';
-                return;
-            }
-            sessions.forEach(session => {
-                const total = (session.good_seconds || 0) + (session.bad_seconds || 0);
-                const goodPct = total > 0 ? Math.round(session.good_seconds / total * 100) : 0;
-                const dateStr = formatDate(session.date);
-                const duration = formatDuration(total);
-                const worst = findWorstMoment(session.events || [], session.end_time);
-                const barColor = goodPct >= 70 ? '#00ff78' : goodPct >= 50 ? '#ffa500' : '#ff3366';
+        const POLISH_MONTHS_FULL = ['Styczeń','Luty','Marzec','Kwiecień','Maj','Czerwiec','Lipiec','Sierpień','Wrzesień','Październik','Listopad','Grudzień'];
 
-                const row = document.createElement('div');
-                row.className = 'stats-history-row';
-                row.innerHTML = `
+        function renderSessionRow(session) {
+            const total = (session.good_seconds || 0) + (session.bad_seconds || 0);
+            const goodPct = total > 0 ? Math.round(session.good_seconds / total * 100) : 0;
+            const dateStr = formatDate(session.date);
+            const duration = formatDuration(total);
+            const worst = findWorstMoment(session.events || [], session.end_time);
+            const barColor = goodPct >= 70 ? '#00ff78' : goodPct >= 50 ? '#ffa500' : '#ff3366';
+            return `
+                <div class="stats-history-row">
                     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
                         <span style="color: #fff; font-weight: 600; font-size: 14px;">${dateStr}</span>
                         <span style="color: #aaa; font-size: 12px;">${duration} &nbsp;|&nbsp; 🚨 ${session.alerts || 0}</span>
@@ -589,8 +646,48 @@
                         <span style="color: ${barColor}; font-size: 12px; font-weight: bold;">${goodPct}% dobrej postawy</span>
                         ${worst ? `<span style="color: #888; font-size: 11px;">Najgorzej: ${worst.start} (${formatDuration(worst.duration)})</span>` : ''}
                     </div>
+                </div>`;
+        }
+
+        function renderStatsHistory(sessions) {
+            const listDiv = document.getElementById('stats-history-list');
+            listDiv.innerHTML = '';
+            if (!sessions || sessions.length === 0) {
+                listDiv.innerHTML = '<p style="color: #aaa; text-align: center; font-size: 13px;">Brak poprzednich sesji. Ta pojawi się tu po zamknięciu.</p>';
+                return;
+            }
+
+            const groups = {};
+            sessions.forEach(session => {
+                const parts = session.date.split('-');
+                const key = `${parts[0]}-${parts[1]}`;
+                if (!groups[key]) groups[key] = [];
+                groups[key].push(session);
+            });
+
+            const sortedKeys = Object.keys(groups).sort().reverse();
+            sortedKeys.forEach((key, index) => {
+                const [year, month] = key.split('-');
+                const monthLabel = `${POLISH_MONTHS_FULL[parseInt(month) - 1]} ${year}`;
+                const isOpen = index === 0;
+                const count = groups[key].length;
+
+                const section = document.createElement('div');
+                section.style.marginBottom = '8px';
+                section.innerHTML = `
+                    <div onclick="const body = this.nextElementSibling; const arr = this.querySelector('.arr'); const open = body.style.display !== 'none'; body.style.display = open ? 'none' : 'flex'; arr.innerText = open ? '▼' : '▲';"
+                         style="display:flex; justify-content:space-between; align-items:center; padding:8px 12px; background:rgba(255,165,0,0.08); border-radius:8px; cursor:pointer; border:1px solid rgba(255,165,0,0.2);">
+                        <span style="color:#ffa500; font-size:13px; font-weight:600;">${monthLabel}</span>
+                        <span style="display:flex; align-items:center; gap:8px;">
+                            <span style="color:#666; font-size:11px;">${count} sesji</span>
+                            <span class="arr" style="color:#aaa; font-size:11px;">${isOpen ? '▲' : '▼'}</span>
+                        </span>
+                    </div>
+                    <div style="display:${isOpen ? 'flex' : 'none'}; flex-direction:column; gap:8px; margin-top:6px;">
+                        ${groups[key].map(s => renderSessionRow(s)).join('')}
+                    </div>
                 `;
-                listDiv.appendChild(row);
+                listDiv.appendChild(section);
             });
         }
 
