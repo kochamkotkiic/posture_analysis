@@ -28,7 +28,7 @@ def record_raw_frames():
             # Wyświetlamy podgląd, żebyś widziała co robisz
             cv2.imshow("NAGRYWANIE RAW (Pracuj naturalnie)", frame)
 
-            # Zapisujemy klatkę jako JPG (jakość 100% - zero strat kompresji)
+            # Zapisujemy klatkę jako JPG
             frame_name = f"frame_{frame_count:06d}.jpg"
             cv2.imwrite(os.path.join(OUTPUT_DIR, frame_name), frame, [cv2.IMWRITE_JPEG_QUALITY, 100])
 

@@ -1,5 +1,6 @@
 import json
 import os
+import shutil
 from datetime import datetime
 
 BASE_DIR      = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -80,12 +81,22 @@ def has_calibration(name: str) -> bool:
 
 
 def delete_profile(name: str) -> bool:
-    """Usuwa profil. Zwraca True jeśli się udało."""
-    path = os.path.join(PROFILES_DIR, f"{name.lower()}.json")
-    if os.path.exists(path):
-        os.remove(path)
-        return True
-    return False
+    """Usuwa profil i jego sesje. Zwraca True jesli sie udalo."""
+    profile_name_lower = name.lower()
+
+    # Usun plik profilu
+    profile_path = os.path.join(PROFILES_DIR, f"{profile_name_lower}.json")
+    if os.path.exists(profile_path):
+        os.remove(profile_path)
+
+    # Usun folder z sesjami
+    sessions_folder = os.path.join(SESSIONS_DIR, profile_name_lower)
+    if os.path.exists(sessions_folder):
+        shutil.rmtree(sessions_folder)
+        print(f"✅ Usunieto sesje dla profilu: {name}")
+
+    # Zwroc True jesli profil zostal usuniety
+    return not os.path.exists(profile_path)
 
 
 SESSIONS_DIR = os.path.join(BASE_DIR, "data", "sessions")

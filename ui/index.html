@@ -3,13 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Koci Strażnik Postawy</title>
+    <title>Posture Analysis</title>
     <link rel="stylesheet" href="style.css">
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;800&display=swap" rel="stylesheet">
 </head>
 <body id="app-body">
     <div class="drag-bar" id="drag-bar">
-        <span>Koci Strażnik Postawy - AI Edition</span>
+        <span>Posture Analysis</span>
         <div style="-webkit-app-region: no-drag; margin-left: auto; display: flex; gap: 8px; padding-right: 15px;">
             <button id="sys-min" style="background: rgba(255,255,255,0.1); padding: 0px 10px; border-radius: 5px; min-width: 35px; color: white;">_</button>
             <button id="sys-max" style="background: rgba(255,255,255,0.1); padding: 0px 10px; border-radius: 5px; min-width: 35px; color: white;">🗖</button>
@@ -36,6 +36,18 @@
             <div style="display: flex; gap: 10px;">
                 <button id="btn-create-confirm" style="flex: 1; padding: 12px; font-size: 16px; background: rgba(0, 255, 120, 0.3); border: 2px solid #00ff78; border-radius: 8px; color: #fff; cursor: pointer;">Stwórz</button>
                 <button id="btn-create-cancel" style="flex: 1; padding: 12px; font-size: 16px; background: rgba(255, 51, 102, 0.3); border: 2px solid #ff3366; border-radius: 8px; color: #fff; cursor: pointer;">Anuluj</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="delete-profile-dialog" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 1000; align-items: center; justify-content: center;">
+        <div class="status-panel" style="max-width: 380px; padding: 30px; text-align: center;">
+            <div style="font-size: 40px; margin-bottom: 12px;">🗑️</div>
+            <h2 style="color: #ff3366; margin-bottom: 12px; font-size: 20px;">Usuń profil</h2>
+            <p id="delete-profile-text" style="color: #aaa; font-size: 14px; margin-bottom: 25px; line-height: 1.6;"></p>
+            <div style="display: flex; gap: 10px;">
+                <button id="btn-delete-confirm" style="flex: 1; padding: 12px; font-size: 15px; background: rgba(255, 51, 102, 0.3); border: 2px solid #ff3366; border-radius: 8px; color: #fff; cursor: pointer; font-weight: 600;">Usuń</button>
+                <button id="btn-delete-cancel" style="flex: 1; padding: 12px; font-size: 15px; background: rgba(255,255,255,0.08); border: 2px solid #555; border-radius: 8px; color: #fff; cursor: pointer;">Anuluj</button>
             </div>
         </div>
     </div>
@@ -104,7 +116,7 @@
 
         <div class="controls" id="controls" style="max-width: 600px; margin-top: 15px; display: flex; gap: 15px; width: 100%;">
             <button id="btn-stats" style="padding: 15px; font-size: 14px; flex: 1; background: rgba(0,255,120,0.15); border: 2px solid #00aa55; border-radius: 8px; color: white; cursor: pointer;">📊 Statystyki</button>
-            <button id="btn-overlay" style="padding: 15px; font-size: 16px; flex: 1; background: rgba(255,255,255,0.1); border: 2px solid #555; border-radius: 8px; color: white; cursor: pointer;">Pływający Kotek</button>
+            <button id="btn-overlay" style="padding: 15px; font-size: 16px; flex: 1; background: rgba(255,255,255,0.1); border: 2px solid #555; border-radius: 8px; color: white; cursor: pointer;">Awatar</button>
             <button id="btn-change-profile" style="padding: 15px; font-size: 16px; flex: 1; background: rgba(255, 165, 0, 0.3); border: 2px solid #ffa500; border-radius: 8px; color: white; cursor: pointer;">Powrót do menu</button>
             <button id="btn-close-main" style="padding: 15px; font-size: 16px; flex: 1; background: rgba(255,51,102,0.3); border: 2px solid #ff3366; border-radius: 8px; color: white; cursor: pointer;">Zamknij Program</button>
         </div>
@@ -268,11 +280,28 @@
         const ws = new WebSocket('ws://localhost:8765');
         let wsReady = false;
 
-        ws.onopen = () => { wsReady = true; console.log('WS connected'); };
+        ws.onopen = () => {
+            wsReady = true;
+            ws.send(JSON.stringify({ type: "get_profiles" }));
+            console.log('WS connected');
+        };
         ws.onclose = () => { wsReady = false; console.log('Rozłączono z backendem'); };
 
         const createDialog = document.getElementById('create-profile-dialog');
         const profileInput = document.getElementById('profile-name-input');
+
+        let profileToDelete = null;
+        document.getElementById('btn-delete-confirm').addEventListener('click', () => {
+            if (profileToDelete && wsReady) {
+                ws.send(JSON.stringify({ type: "delete_profile", name: profileToDelete }));
+            }
+            profileToDelete = null;
+            document.getElementById('delete-profile-dialog').style.display = 'none';
+        });
+        document.getElementById('btn-delete-cancel').addEventListener('click', () => {
+            profileToDelete = null;
+            document.getElementById('delete-profile-dialog').style.display = 'none';
+        });
 
         document.getElementById('btn-new-profile').addEventListener('click', () => {
             if (!wsReady) return alert('Backend (Python) jeszcze się nie załadował. Poczekaj chwilę!');
@@ -388,10 +417,9 @@
                         delBtn.onmouseout  = () => delBtn.style.color = "rgba(255, 51, 102, 0.6)";
 
                         delBtn.onclick = () => {
-                            // Okienko z potwierdzeniem
-                            if(confirm(`Czy na pewno chcesz bezpowrotnie usunąć profil '${profileName}'?`)) {
-                                ws.send(JSON.stringify({ type: "delete_profile", name: profileName }));
-                            }
+                            profileToDelete = profileName;
+                            document.getElementById('delete-profile-text').innerText = `Czy na pewno chcesz bezpowrotnie usunąć profil "${profileName}"? Tej operacji nie można cofnąć.`;
+                            document.getElementById('delete-profile-dialog').style.display = 'flex';
                         };
                         btn.onclick = () => {
                             sessionStartTime = new Date();
@@ -522,21 +550,6 @@
 
             if (data.type === "session_config") {
                 sessionStretchLimit = data.stretch_limit || 300;
-            }
-
-            if (data.type === "stretch_warning") {
-                stretchWarningActive = true;
-                const bar = document.getElementById('stretch-progress-bar');
-                if (bar) {
-                    bar.style.background = '#ff3366';
-                    bar.style.boxShadow = '0 0 8px #ff3366';
-                    bar.style.animation = 'pulse-bar 1s infinite';
-                }
-                const alertEl = document.getElementById('alert-text');
-                if (alertEl && alertEl.innerText !== "🚨 ALERT: WYPROSTUJ SIĘ!") {
-                    alertEl.innerText = "⚠️ Zadbaj o postawę — niedługo przerwa!";
-                    alertEl.style.color = '#ffa500';
-                }
             }
 
             // --- ODBIÓR ALERTU O ROZCIĄGANIU ---
@@ -738,7 +751,6 @@
             setTimeout(() => {
                 popup.style.display = 'none';
 
-                // MAGIA: Wracamy DOKŁADNIE do tego trybu, w którym byliśmy!
                 setMode(previousMode);
 
                 if (wsReady) {

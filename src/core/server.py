@@ -16,7 +16,7 @@ sys.path.insert(0, BASE_DIR)
 
 from src.core.normalizer import normalize_features
 from datetime import datetime
-from src.core.profile_manager import save_session, get_sessions
+from src.core.profile_manager import save_session, get_sessions, delete_profile
 
 MODEL_PATH = os.path.join(BASE_DIR, "models", "posture_model.pkl")
 SCALER_PATH = os.path.join(BASE_DIR, "models", "scaler.pkl")
@@ -76,9 +76,7 @@ async def posture_server(websocket):
             if client_data.get("type") == "delete_profile":
                 del_name = client_data.get("name")
                 if del_name:
-                    del_path = os.path.join(PROFILES_DIR, f"{del_name}.json")
-                    if os.path.exists(del_path):
-                        os.remove(del_path)
+                    if delete_profile(del_name):
                         print(f"\n[SERWER] Usunięto profil z dysku: {del_name}")
 
                 # Po usunięciu odświeżamy listę w interfejsie
@@ -227,7 +225,6 @@ async def posture_server(websocket):
 
         STRETCH_LIMIT = 300    # 5 minut złej postawy → alert
         RECOVERY_LIMIT = 120   # 2 minuty dobrej postawy → reset licznika
-        STRETCH_WARNING = int(STRETCH_LIMIT * 0.8)  # ostrzeżenie przy 240s
         print(f"\n[SERWER] Załadowano profil '{profile_name}'. Odpalam kamerę!")
 
         cap = cv2.VideoCapture(0)
@@ -364,11 +361,6 @@ async def posture_server(websocket):
                 try:
                     await websocket.send(json.dumps(send_data))
 
-                    # --- OSTRZEŻENIE (80% limitu) ---
-                    if total_bad_seconds >= STRETCH_WARNING and not warning_sent:
-                        print(f"\n[SERWER] Ostrzeżenie: {total_bad_seconds:.0f}s / {STRETCH_LIMIT}s")
-                        await websocket.send(json.dumps({"type": "stretch_warning"}))
-                        warning_sent = True
 
                     # --- ALERT (100% limitu) ---
                     if total_bad_seconds >= STRETCH_LIMIT:
