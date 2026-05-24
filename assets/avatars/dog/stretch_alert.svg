@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 280 140">
+  <rect width="280" height="140" rx="10" fill="rgba(255,165,0,0.06)"/>
+  <g>
+    <animateTransform attributeName="transform" attributeType="XML" type="translate"
+      values="0 0;0 -10;0 0" dur="1s" repeatCount="indefinite"
+      calcMode="spline" keySplines="0.4 0 0.6 1;0.4 0 0.6 1" keyTimes="0;0.5;1"/>
+    <text x="140" y="105" text-anchor="middle" font-size="80">🐶</text>
+  </g>
+</svg>

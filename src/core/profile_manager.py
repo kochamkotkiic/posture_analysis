@@ -42,14 +42,15 @@ def save_profile(profile: dict):
         json.dump(profile, f, indent=2, ensure_ascii=False)
 
 
-def create_profile(name: str) -> dict:
+def create_profile(name: str, avatar_type: str = "cat") -> dict:
     """Tworzy nowy pusty profil (bez kalibracji)."""
     profile = {
         "name": name,
         "created":     datetime.now().strftime("%Y-%m-%d %H:%M"),
         "last_used":   datetime.now().strftime("%Y-%m-%d %H:%M"),
         "calibration": None,   # wypełni się po kalibracji
-        "sensitivity": "medium"
+        "sensitivity": "medium",
+        "avatar_type": avatar_type
     }
     save_profile(profile)
     return profile

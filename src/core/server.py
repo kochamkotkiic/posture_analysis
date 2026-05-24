@@ -85,6 +85,7 @@ async def posture_server(websocket):
             # Obsługa tworzenia nowego profilu
             if client_data.get("type") == "create_profile":
                 new_profile_name = client_data.get("name", "").strip()
+                avatar_type = client_data.get("avatar_type", "cat")
                 if new_profile_name:
                     print(f"\n[SERWER] Rozpoczęcie kalibracji dla profilu: {new_profile_name}")
                     cap = cv2.VideoCapture(0)
@@ -195,7 +196,8 @@ async def posture_server(websocket):
                         profile_content = {
                             "name": new_profile_name,
                             "calibration": calibration_data,
-                            "created_at": time.strftime("%Y-%m-%d %H:%M:%S")
+                            "created_at": time.strftime("%Y-%m-%d %H:%M:%S"),
+                            "avatar_type": avatar_type
                         }
 
                         with open(profile_path, "w", encoding="utf-8") as f:
@@ -223,7 +225,7 @@ async def posture_server(websocket):
             print(f"[BŁĄD] Profil {profile_name} nie ma kalibracji!")
             continue
 
-        STRETCH_LIMIT = 300    # 5 minut złej postawy → alert
+        STRETCH_LIMIT = 600    # 10 minut złej postawy → alert
         RECOVERY_LIMIT = 120   # 2 minuty dobrej postawy → reset licznika
         print(f"\n[SERWER] Załadowano profil '{profile_name}'. Odpalam kamerę!")
 
@@ -254,7 +256,8 @@ async def posture_server(websocket):
 
         await websocket.send(json.dumps({
             "type": "session_config",
-            "stretch_limit": STRETCH_LIMIT
+            "stretch_limit": STRETCH_LIMIT,
+            "avatar_type": profile_data.get("avatar_type", "cat")
         }))
 
         with mp_pose.Pose(min_detection_confidence=0.6, min_tracking_confidence=0.6, model_complexity=1) as pose:
